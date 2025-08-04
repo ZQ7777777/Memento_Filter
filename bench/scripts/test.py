@@ -29,7 +29,8 @@ use_numa = False
 membind = 0
 physcpubind = 16
 
-ds_list = ["memento", "grafite", "surf", "rosetta", "snarf", "proteus", "rencoder", "oasis"]
+# ds_list = ["memento", "grafite", "surf", "rosetta", "snarf", "proteus", "rencoder", "oasis"]
+ds_list = ["memento","self1","self2","self3","self4"]
 # ds_list_with_bucketing = ds_list.copy() + ['bucketing']
 memento_sizes_to_test = []
 
@@ -42,7 +43,11 @@ ds_parameters = {'memento': list(np.linspace(8, 28, 6)),  # eps
                  'rosetta': list(np.linspace(8, 28, 6)),  # bpk
                  'proteus': list(np.linspace(8, 28, 6)),
                  'rencoder': list(np.linspace(8, 28, 6)),  # bpk
-                 'oasis': list(np.linspace(8, 28, 6))}     # bpk
+                 'oasis': list(np.linspace(8, 28, 6)),     # bpk
+                 'self1': list(np.linspace(8, 28, 6)),    # bpk
+                 'self2': list(np.linspace(8, 28, 6)),    # bpk
+                 'self3': list(np.linspace(8, 28, 6)),    # bpk
+                 'self4': list(np.linspace(8, 28, 6))}    # bpk
 
 ds_parameters_small_universe = {'memento': list(np.linspace(7, 12, 6)),  # eps
                                 'grafite': list(np.linspace(7, 12, 6)),  # eps
@@ -51,8 +56,11 @@ ds_parameters_small_universe = {'memento': list(np.linspace(7, 12, 6)),  # eps
                                 'rosetta': list(np.linspace(7, 12, 6)),  # bpk
                                 'proteus': list(np.linspace(7, 12, 6)),
                                 'rencoder': list(np.linspace(7, 12, 6)), # bpk
-                                'oasis': list(np.linspace(7, 12, 6))}    # bpk
-
+                                'oasis': list(np.linspace(7, 12, 6)),    # bpk
+                                'self1': list(np.linspace(7, 12, 6)),
+                                'self2': list(np.linspace(7, 12, 6)),
+                                'self3': list(np.linspace(7, 12, 6)),
+                                'self4': list(np.linspace(7, 12, 6))}   # bpk
 
 # Format of the test directories for bulk testing
 # [test] ---> [{dataset name}] ---> keys.bin
@@ -221,7 +229,11 @@ if __name__ == "__main__":
                          'proteus': [20],
                          'rencoder': [20], # bpk
                          'oasis': [20],  # bpk
-                         'rsqf': [20]}
+                         'rsqf': [20],
+                         'self1': [20],
+                         'self2': [20],
+                         'self3': [20],
+                         'self4': [20]}  # 添加 self1 配置
     elif test_name == "vary_memento":
         ds_list = ['memento']
         ds_parameters = {'memento': [20]}

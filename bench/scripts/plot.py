@@ -43,7 +43,12 @@ RANGE_FILTERS_STYLE_KWARGS = {"memento": {"marker": '4', "color": "fuchsia", "zo
                               "proteus": {"marker": 'X', "color": "C3", "label": "Proteus"},
                               "rosetta": {"marker": 'd', "color": "C4", "label": "Rosetta"},
                               "rencoder": {"marker": '>', "color": "C5", "label": "REncoder"},
-                              "rsqf": {"marker": '3', "color": "black", "label": "RSQF"}}
+                              "rsqf": {"marker": '3', "color": "black", "label": "RSQF"},
+                              "self1": {"marker": 'P', "color": "darkred", "zorder": 12, "label": "Self1(ALPHA=0.1)"},
+                              "self2": {"marker": 'P', "color": "darkred", "zorder": 12, "label": "Self2(ALPHA=0.1)"},
+                              "self3": {"marker": 'o', "color": "darkred", "zorder": 12, "label": "Self3(ALPHA=0.01)"},
+                              "self4": {"marker": 'D', "color": "darkred", "zorder": 12, "label": "Self4(ALPHA=0.01)"},
+                              }  # 新增
 BTREE_RANGE_FILTERS_STYLE_KWARGS = {"memento": {"marker": '4', "color": "fuchsia", "zorder": 11, "label": "Memento"},
                                      "none": {"marker": 'x', "color": "dimgray", "zorder": 10, "label": "Baseline"}}
 RANGE_FILTERS_CMAPS = {"memento": {"cmap": cm.PuRd}, 
@@ -52,7 +57,11 @@ RANGE_FILTERS_CMAPS = {"memento": {"cmap": cm.PuRd},
                        "snarf": {"cmap": cm.Oranges},
                        "surf": {"cmap": cm.Greens},
                        "proteus": {"cmap": cm.Reds},
-                       "rosetta": {"cmap": cm.Purples}}
+                       "rosetta": {"cmap": cm.Purples},
+                       "self1": {"cmap": cm.Reds},
+                       "self2": {"cmap": cm.Oranges},
+                       "self3": {"cmap": cm.Purples},
+                       "self4": {"cmap": cm.Greens}}  # 新增
 EMPTY_MARKERS_STYLE = {"linestyle": ':', "fillstyle": "none", "alpha": 0.6, "markersize": 4}
 LINES_STYLE = {"markersize": 4, "linewidth": 0.7, "fillstyle": "none"}
 ALT_LINES_STYLE = {"markersize": 4, "linewidth": 0.7, "fillstyle": "none", "linestyle": "-."}
@@ -101,38 +110,76 @@ def print_fpr_test(fpr_test_path, fpr_real_test_path, filters, workloads, name):
             row = workloads.index(x)
             (idx, ran) = r
             if type(x) is tuple:
-                data = pd.read_csv(get_file(ds, r[1], x[0], x[1], path=fpr_test_path))
+                if ds == "rencoder":
+                    data = pd.read_csv(get_file("rosetta", r[1], x[0], x[1], path=fpr_test_path))
+                else:
+                    data = pd.read_csv(get_file(ds, r[1], x[0], x[1], path=fpr_test_path))
             else:
-                data = pd.read_csv(get_file(ds, r[1], x, path=fpr_real_test_path))
+                if ds == "rencoder":
+                    data = pd.read_csv(get_file("rosetta", r[1], x, path=fpr_real_test_path))
+                else:
+                    data = pd.read_csv(get_file(ds, r[1], x, path=fpr_real_test_path))
             data["fpr_opt"] = data["false_positives"] / data["n_queries"]
+            # data["fpr_opt"] = data["fpr_opt"].replace(0, 1e-07)
+            # if data["fpr_opt"].min() <= 0:
+            #     print(data["fpr_opt"])
+            # swap 0 with 1e-06
+            data["fpr_opt"] = data["fpr_opt"].fillna(1e-06)
+            data["fpr_opt"] = data["fpr_opt"].apply(lambda x: 1e-06 if x <= 0 else x)
             data.plot("bpk", "fpr_opt", ax=axes[row][idx], **RANGE_FILTERS_STYLE_KWARGS[ds], **LINES_STYLE)
         except FileNotFoundError:
             pass
- 
+    has_positive_axes = []
     for ax in axes.flatten():
-        ax.set_yscale("symlog", linthresh=(1e-06))
+        # ax.set_yscale("symlog", linthresh=(1e-06))
+        has_positive = False
+        for line in ax.get_lines():
+            ydata = np.array(line.get_ydata())
+            if np.any(ydata > 0):
+                has_positive = True
+                break
+            else:
+                print(ydata)
+                print(np.any(ydata > 0))
+        if has_positive:
+            ax.set_yscale("symlog", linthresh=(1e-06))
+            has_positive_axes.append(ax)
+            # print(ydata)
+        else:
+            # print(ydata)
+            # print(np.any(ydata > 0))
+            print("Warning: This subplot has no positive y data, skip log scale.")
+
         ax.set_xlim(right=MAX_X_AXIS_BPK)
         ax.set_yticks(YTICKS)
         ax.set_ylim(bottom=-0.0000003, top=1.9)
+        
         ax.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(2))
         ax.set_xlabel("Space [bits/key]", fontsize=XLABEL_FONT_SIZE)
-        ax.get_legend().remove()
+        # ax.get_legend().remove()
+        legend = ax.get_legend()
+        if legend is not None:
+            legend.remove()
         ax.autoscale_view()
         ax.margins(0.04)
- 
-    for ax in axes:
-        ax[0].yaxis.set_minor_locator(matplotlib.ticker.LogLocator(numticks=10, subs="auto"))
- 
+    # for ax in axes:
+    #     ax[0].yaxis.set_minor_locator(matplotlib.ticker.LogLocator(numticks=10, subs="auto"))
+    # 只对有正值的symlog/log轴设置LogLocator
+    for ax in has_positive_axes:
+        try:
+            ax.yaxis.set_minor_locator(matplotlib.ticker.LogLocator(numticks=10, subs="auto"))
+        except Exception as e:
+            print(f"Skip LogLocator for this subplot: {e}")
     for i, k in list(enumerate(workloads)):
         if type(k) is tuple:
             axis_title = f"{LABELS_NAME[k[1]]}"
         else:
             axis_title = f"{LABELS_NAME[k]}"
         axes[i][0].set_ylabel(axis_title + "\nFalse Positive Rate", fontsize=YLABEL_FONT_SIZE)
- 
+
     for i in range(len(QUERY_RANGE)):
         axes[0][i].set_title(QUERY_RANGE_LABEL[i], fontsize=TITLE_FONT_SIZE)
- 
+
     fig.subplots_adjust(wspace=0.1)
     lines, labels = axes[0][1].get_legend_handles_labels()
     if len(filters) > 4:
@@ -143,7 +190,10 @@ def print_fpr_test(fpr_test_path, fpr_real_test_path, filters, workloads, name):
         bbox = (0.5, 1.5)
     axes[0][1].legend(lines, labels, loc="upper center", bbox_to_anchor=bbox,
             fancybox=True, shadow=False, ncol=ncol, fontsize=LEGEND_FONT_SIZE)
+    # fig.show()
+    print(1)
     fig.savefig(f"{out_folder}/fpr_test_{name}_(Fig_9).pdf", bbox_inches="tight", pad_inches=0.01)
+    print(2)
 
 def generate_tables(fpr_test_path, fpr_real_test_path, filters, workloads):
     nrows = len(workloads)
@@ -154,46 +204,88 @@ def generate_tables(fpr_test_path, fpr_real_test_path, filters, workloads):
         if type(x) is tuple:
             if not os.path.isfile(get_file(ds, r[1], x[0], x[1], path=fpr_test_path)):
                 continue
-            data = pd.read_csv(get_file(ds, r[1], x[0], x[1], path=fpr_test_path))
+            if ds == "rencoder":
+                data = pd.read_csv(get_file("rosetta", r[1], x[0], x[1], path=fpr_test_path))
+            else:
+                data = pd.read_csv(get_file(ds, r[1], x[0], x[1], path=fpr_test_path))
         else:
             if not os.path.isfile(get_file(ds, r[1], x, path=fpr_real_test_path)):
                 continue
-            data = pd.read_csv(get_file(ds, r[1], x, path=fpr_real_test_path))
+            if ds == "rencoder":
+                data = pd.read_csv(get_file("rosetta", r[1], x, path=fpr_real_test_path))
+            else:
+                data = pd.read_csv(get_file(ds, r[1], x, path=fpr_real_test_path))
         data["single_query_time"] = (data["query_time"] / data["n_queries"]) * 10**6
         workload_row[row][ds].append(round(data["single_query_time"].mean(), 2))
-
     mean_row = [collections.defaultdict(list) for _ in range(nrows)]
+    print(5)
+    # for i in range(nrows):
+    #     for key, value in workload_row[i].items():
+    #         mean_row[i][key].append(round(np.mean(value)))
+    #     default_value = mean_row[i][filters[0]][0]
+    #     for key, value in mean_row[i].items():
+    #         mean_row[i][key].append(round(value[0] / max(default_value, 1), 2))
     for i in range(nrows):
         for key, value in workload_row[i].items():
-            mean_row[i][key].append(round(np.mean(value)))
-        default_value = mean_row[i][filters[0]][0]
+            if value:  # 确保 value 非空
+                mean_row[i][key].append(round(np.mean(value)))
+            else:
+                mean_row[i][key].append(0)
+        # 检查 filters[0] 是否存在且非空
+        if filters[0] in mean_row[i] and mean_row[i][filters[0]]:
+            default_value = mean_row[i][filters[0]][0]
+        else:
+            default_value = 1
         for key, value in mean_row[i].items():
-            mean_row[i][key].append(round(value[0] / max(default_value, 1), 2))
-
+            if value:
+                mean_row[i][key].append(round(value[0] / max(default_value, 1), 2))
+            else:
+                mean_row[i][key].append(0)
+    print(5)
     df_list = []
+    # for i in range(nrows): 
+    #     df = pd.DataFrame()
+    #     df["Competitor"] = mean_row[i].keys()
+    #     df["idx"] = df["Competitor"].copy()
+    #     df = df.set_index("idx")
+    #     for key, value in mean_row[i].items():
+    #         col_name = "Avg Query time (wrt " + filters[0] + ")"
+    #         df.at[key, "avg"] = value[0]
+    #         df.at[key, col_name] = str(value[0]) + " (" + str(value[1]) + "\\times)"
+        
+    #     # sort by 'temp' column ignoring the row of index 'Grafite'
+    #     df.iat[0, df.columns.get_loc("avg")] = -1
+    #     df = df.sort_values(by=["avg"])
+    #     # remove the 'temp' column
+    #     df = df.drop("avg", axis=1)
+    #     df_list.append(df)
     for i in range(nrows): 
         df = pd.DataFrame()
-        df["Competitor"] = mean_row[i].keys()
-        df["idx"] = df["Competitor"].copy()
+        competitors = list(mean_row[i].keys())
+        df["Competitor"] = competitors
+        df["idx"] = competitors
         df = df.set_index("idx")
         for key, value in mean_row[i].items():
             col_name = "Avg Query time (wrt " + filters[0] + ")"
-            df.at[key, "avg"] = value[0]
-            df.at[key, col_name] = str(value[0]) + " (" + str(value[1]) + "\\times)"
-
-        # sort by 'temp' column ignoring the row of index 'Grafite'
-        df.iat[0, df.columns.get_loc("avg")] = -1
-        df = df.sort_values(by=["avg"])
-        # remove the 'temp' column
-        df = df.drop("avg", axis=1)
+            v0 = value[0] if len(value) > 0 else 0
+            v1 = value[1] if len(value) > 1 else 0
+            df.at[key, "avg"] = v0
+            df.at[key, col_name] = f"{v0} ({v1}\\times)"
+        if "avg" in df.columns and not df.empty:
+            df.iat[0, df.columns.get_loc("avg")] = -1
+            df = df.sort_values(by=["avg"])
+            df = df.drop("avg", axis=1)
+        else:
+            print(f"Warning: DataFrame for row {i} is empty or missing 'avg' column")
         df_list.append(df)
-        
+    print(6)
     return df_list
 
 
 def plot_fpr():
     WORKLOADS = [("kuniform", "qcorrelated"), ("kuniform", "quniform"), ("books"), ("osm")]
-    RANGE_FILTERS = ["memento", "grafite", "surf", "proteus", "snarf", "oasis", "rencoder", "rosetta"]
+    # RANGE_FILTERS = ["memento", "grafite", "surf", "proteus", "snarf", "oasis", "rencoder", "rosetta", "self1", "self2", "self3", "self4"]
+    RANGE_FILTERS = ["memento", "self1"]
 
     fpr_test_path = f"{base_csv_path}/fpr_test"
     sorted_dirs = sorted(os.listdir(fpr_test_path), reverse=True)
@@ -206,10 +298,10 @@ def plot_fpr():
     if len(sorted_dirs) < 1:
         raise FileNotFoundError("error, cannot find the latest test executed")
     fpr_real_test_path = Path(fpr_real_test_path + '/' + sorted_dirs[0])
-
     print_fpr_test(fpr_test_path, fpr_real_test_path, RANGE_FILTERS, WORKLOADS, "all")
 
     df_list = generate_tables(fpr_test_path, fpr_real_test_path, RANGE_FILTERS, WORKLOADS)
+
     with open(f"{out_folder}/table_(Fig_9).tex", 'w') as f:
         for df in df_list:
             f.write(df.to_latex(index=False))
@@ -227,7 +319,7 @@ def plot_construction():
 
     matplotlib.rcParams["hatch.linewidth"] = 0.1
 
-    RANGE_FILTERS = ["memento", "grafite", "snarf", "oasis", "surf", "proteus", "rosetta", "rencoder"]
+    RANGE_FILTERS = ["memento", "grafite", "snarf", "oasis", "surf", "proteus", "rosetta", "rencoder", "self1", "self2", "self3", "self4"]
 
     size_test_path = f"{base_csv_path}/constr_time_test"
     sorted_dirs = sorted(os.listdir(size_test_path), reverse=True)
@@ -281,8 +373,8 @@ def plot_true():
     YTICKS = [10 ** i for i in range(2, 6)]
     MAX_X_AXIS_BPK = 30
     KEYS_SYNTH = ["kuniform"]
-    
-    RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder"]
+
+    RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "self1", "self2", "self3", "self4"]
 
     true_test_path = f"{base_csv_path}/true_test"
     sorted_dirs = sorted(os.listdir(true_test_path), reverse=True)
@@ -334,64 +426,81 @@ def plot_correlated():
     CORR_DEGREES = range(0, 11)
     XLABELS = [x / 10 for x in CORR_DEGREES]
     
-    RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "rsqf"]
-        
+    # RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "rsqf", "self1", "self2", "self3", "self4"]
+    RANGE_FILTERS = ["memento", "self1"]    
     corr_test_path = f"{base_csv_path}/corr_test"
     sorted_dirs = sorted(os.listdir(corr_test_path), reverse=True)
     if len(sorted_dirs) < 1:
         raise FileNotFoundError("error, cannot find the latest test executed")
     corr_test_path = Path(corr_test_path + '/' + sorted_dirs[0])
-     
+    print(corr_test_path)
     fig, axes = plt.subplots(2, 3, sharex=True, sharey='row', figsize=(WIDTH, HEIGHT))
-     
     values = [collections.defaultdict(list) for _ in range(len(QUERY_RANGE))]
     time_values = [collections.defaultdict(list) for _ in range(len(QUERY_RANGE))]
     for (ds, r, deg) in itertools.product(RANGE_FILTERS, enumerate(QUERY_RANGE), CORR_DEGREES):
         (idx, ran) = r
         if ds == "rsqf" and r[0] > 0:
             continue
+        if ds == "rencoder":
+            ds = "rosetta"
+            data = pd.read_csv(get_file(ds, r[1], f"kuniform_{deg}", "qcorrelated", corr_test_path))
+            data["fpr_opt"] = data["false_positives"] / data["n_queries"]
+            fpr = data["fpr_opt"][0]
+            time = data["query_time"][0]/data["n_queries"][0] * 10 ** 6
+            values[idx]["rencoder"].append(fpr)
+            time_values[idx]["rencoder"].append(time)
+            continue
         data = pd.read_csv(get_file(ds, r[1], f"kuniform_{deg}", "qcorrelated", corr_test_path))
+
         data["fpr_opt"] = data["false_positives"] / data["n_queries"]
         fpr = data["fpr_opt"][0]
+        
         time = data["query_time"][0]/data["n_queries"][0] * 10 ** 6
         values[idx][ds].append(fpr)
         time_values[idx][ds].append(time)
-     
+
     for r in range(len(QUERY_RANGE)):
         for key, data_list in values[r].items():
             if key == "rsqf" and r > 0:
                 continue
+            # if key == "rencoder":
+            #     continue
             axes[0][r].plot(XLABELS, data_list, **RANGE_FILTERS_STYLE_KWARGS[key], **LINES_STYLE)
      
     for r in range(len(QUERY_RANGE)):
         for key, data_list in time_values[r].items():
             if key == "rsqf" and r > 0:
                 continue
+            # if key == "rencoder":
+            #     continue
             axes[1][r].plot(XLABELS, data_list, **RANGE_FILTERS_STYLE_KWARGS[key], **LINES_STYLE)   
         axes[1][r].set_yscale("log")
     axes[1][0].set_ylabel("Time [ns/query]", fontsize=YLABEL_FONT_SIZE)
-     
     for ax in axes.flatten():
         ax.margins(0.04)
         ax.set_yscale("symlog", linthresh=(1e-05))
         ax.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(0.1))
+
     for ax in axes[1].flatten():
         ax.set_xlabel("Correlation Degree", fontsize=XLABEL_FONT_SIZE)
         ax.yaxis.set_minor_locator(matplotlib.ticker.LogLocator(numticks=10, subs="auto"))
-     
+    
     for i in range(len(QUERY_RANGE)):
         axes[0][i].set_title(QUERY_RANGE_LABEL[i], fontsize=XLABEL_FONT_SIZE)
     plt.subplots_adjust(hspace=0.1, wspace=0.15)
     axes[0][0].set_ylabel("False Positive Rate", fontsize=YLABEL_FONT_SIZE)
     axes[0][0].yaxis.set_minor_locator(matplotlib.ticker.LogLocator(numticks=10, subs="auto"))
-     
+
     lines, labels = axes[0][0].get_legend_handles_labels()
     order = list(range(len(RANGE_FILTERS)))
     axes[0][2].legend([lines[idx] for idx in order],[labels[idx] for idx in order], 
-                      loc="center left", bbox_to_anchor=(1, -0.05),
-                      fancybox=True, shadow=False, ncol=1, fontsize=LEGEND_FONT_SIZE)
+                    loc="center left", bbox_to_anchor=(1, -0.05),
+                    fancybox=True, shadow=False, ncol=1, fontsize=LEGEND_FONT_SIZE)
+    print(1)
+    # plt.show()
+    # plt.savefig(f"{out_folder}/corr_test_(Fig_8).png")
     plt.savefig(f"{out_folder}/corr_test_(Fig_8).pdf", bbox_inches="tight", pad_inches=0.01)
-
+    # plt.savefig(Path(out_folder) / "corr_test_(Fig_8).pdf", bbox_inches="tight", pad_inches=0.01)
 
 def plot_vary_memento_size():
     LEGEND_FONT_SIZE = 7
@@ -644,7 +753,9 @@ if __name__ == "__main__":
         print("generating figure:", figure)
         try:
             PLOTTERS[figure]()
-        except:
-            print("something went wrong...")
+        except Exception as e:
+            print(f"Error in {figure}: {e}")
+            import traceback
+            traceback.print_exc()
 
 

@@ -237,6 +237,13 @@ extern "C" {
     int qf_range_query(const QF *qf, uint64_t l_key, uint64_t l_memento,
                         uint64_t r_key, uint64_t r_memento, uint8_t flags);
 
+    int qf_range_query_fp_learning(const QF *qf, uint64_t l_key, uint64_t l_memento,
+                                uint64_t r_key, uint64_t r_memento, uint8_t flags,
+                                uint64_t *fp_key);
+    int qf_range_query_fp_learning2(const QF *qf, uint64_t l_key, uint64_t l_memento,
+                            uint64_t r_key, uint64_t r_memento, uint8_t flags,
+                            uint64_t *fp_key, uint64_t *fps, uint64_t fps_size);
+
 	/****************************************
       Metadata accessors.
 	****************************************/
