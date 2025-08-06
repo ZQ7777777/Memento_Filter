@@ -38,11 +38,26 @@ struct FPCacheLRUFreq {
     };
     
     std::priority_queue<CacheEntry> pq;
-    std::unordered_map<uint64_t, std::pair<uint32_t, uint32_t>> key_info; // key -> (frequency, last_time)
+    std::map<uint64_t, std::pair<uint32_t, uint32_t>> key_info; // key -> (frequency, last_time)
     uint64_t max_size;
     uint32_t current_time;
+    uint64_t cur_range_fp_size;
 
     FPCacheLRUFreq(uint64_t size) : max_size(size), current_time(0) {}
+    // 优化后的范围查询 - O(log n + k)，k 是结果数量
+    uint64_t* get_keys_in_range(uint64_t left, uint64_t right) {
+        auto it_start = key_info.lower_bound(left);   // 找到第一个 >= left 的元素
+        auto it_end = key_info.upper_bound(right);    // 找到第一个 > right 的元素
+        uint64_t* keys = new uint64_t[std::distance(it_start, it_end)];
+        for (auto it = it_start; it != it_end; ++it) {
+            keys[std::distance(it_start, it)] = it->first;
+        }
+        cur_range_fp_size = std::distance(it_start, it_end);
+        return keys;
+    }
+
+
+
 
     bool contains(uint64_t key) {
         auto it = key_info.find(key);
@@ -92,7 +107,7 @@ private:
     }
     
 public:
-    size_t size() const { return max_size * 2; } //bytes
+    size_t size() const { return key_info.size();} 
     void clear() {
         while (!pq.empty()) pq.pop();
         key_info.clear();
@@ -301,11 +316,11 @@ inline bool query_self4(QF_Enhanced *f, const value_type left, const value_type 
 
 inline size_t size_self4(QF_Enhanced *f)
 {
-    return qf_get_total_size_in_bytes(f->qf) + f->fp_cache->size();
+    return qf_get_total_size_in_bytes(f->qf) + f->fp_cache->max_size * 2; // bytes, main size + FP cache size
 }
 
 template <typename InitFun, typename RangeFun, typename SizeFun, typename key_type, typename... Args>
-void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_f, const double param, InputKeys<key_type> &keys, Workload<key_type> &queries, Args... args)
+void experiment_with_fp_learning_self4(InitFun init_f, RangeFun range_f, SizeFun size_f, const double param, InputKeys<key_type> &keys, Workload<key_type> &queries, Args... args)
 {
     auto f = init_f(keys.begin(), keys.end(), param, args...);
 
@@ -318,9 +333,6 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
         const auto [left, right, original_result] = q;
         uint64_t l_key = left >> f->qf->metadata->memento_bits;
         uint64_t l_memento = left & ((1ULL << f->qf->metadata->memento_bits) - 1);
-        uint64_t r_key = right >> f->qf->metadata->memento_bits;
-        uint64_t r_memento = right & ((1ULL << f->qf->metadata->memento_bits) - 1);
-        // bool query_result = range_f(f, left, right);
         bool query_result;
         if (left == right) {
             if (qf_point_query(f->qf, l_key, l_memento, QF_NO_LOCK) && ! f->fp_cache->contains(left)) 
@@ -338,15 +350,16 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
                 fn++;
             }
         } else {
+            uint64_t r_key = right >> f->qf->metadata->memento_bits;
+            uint64_t r_memento = right & ((1ULL << f->qf->metadata->memento_bits) - 1);
             uint64_t fp_key = 0;
-            query_result = qf_range_query_fp_learning(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK, &fp_key);
-            if (query_result && f->fp_cache->contains(fp_key)) {
-                query_result = false;  // False positive detected
-            }
+            uint64_t* fps = f->fp_cache->get_keys_in_range(left, right);
+            uint64_t fps_size = f->fp_cache->cur_range_fp_size;
+            query_result = qf_range_query_fp_learning2(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK, &fp_key, fps, fps_size);
+
             if (query_result && !original_result)
             {
                 fp++;
-                assert(fp_key >= left && fp_key <= right);
                 f->fp_cache->insert(fp_key);
             }
             else if (!query_result && original_result)
@@ -367,6 +380,8 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
     test_out.add_measure("n_keys", keys.size());
     test_out.add_measure("n_queries", queries.size());
     test_out.add_measure("false_positives", fp);
+    test_out.add_measure("fpCacheSize", f->fp_cache->size());
+    test_out.add_measure("fpCacheMaxSize", f->fp_cache->max_size);
     std::cout << "[+] test executed successfully, printing stats and closing." << std::endl;
 }
 
@@ -387,7 +402,7 @@ int main(int argc, char const *argv[])
 
     auto [ keys, queries, arg, memento_size ] = read_parser_arguments_memento(parser);
 
-    experiment_with_fp_learning(pass_fun(init_self4), pass_ref(query_self4), 
+    experiment_with_fp_learning_self4(pass_fun(init_self4), pass_ref(query_self4), 
                 pass_ref(size_self4), arg, keys, queries, queries, memento_size);
 
     print_test();

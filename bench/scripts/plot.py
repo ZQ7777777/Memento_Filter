@@ -44,10 +44,10 @@ RANGE_FILTERS_STYLE_KWARGS = {"memento": {"marker": '4', "color": "fuchsia", "zo
                               "rosetta": {"marker": 'd', "color": "C4", "label": "Rosetta"},
                               "rencoder": {"marker": '>', "color": "C5", "label": "REncoder"},
                               "rsqf": {"marker": '3', "color": "black", "label": "RSQF"},
-                              "self1": {"marker": 'P', "color": "darkred", "zorder": 12, "label": "Self1(ALPHA=0.1)"},
-                              "self2": {"marker": 'P', "color": "darkred", "zorder": 12, "label": "Self2(ALPHA=0.1)"},
-                              "self3": {"marker": 'o', "color": "darkred", "zorder": 12, "label": "Self3(ALPHA=0.01)"},
-                              "self4": {"marker": 'D', "color": "darkred", "zorder": 12, "label": "Self4(ALPHA=0.01)"},
+                              "self1": {"marker": 'P', "color": "darkred", "zorder": 12, "label": "Self(ALPHA=0.05)"},
+                              "self2": {"marker": 'p', "color": "dimgray", "zorder": 12, "label": "Self_LRUFreq(ALPHA=0.05)"},
+                              "self3": {"marker": 'o', "color": "tan", "zorder": 12, "label": "Self(ALPHA=0.01)"},
+                              "self4": {"marker": 'D', "color": "C5", "zorder": 12, "label": "Self_LRUFreq(ALPHA=0.01)"},
                               }  # 新增
 BTREE_RANGE_FILTERS_STYLE_KWARGS = {"memento": {"marker": '4', "color": "fuchsia", "zorder": 11, "label": "Memento"},
                                      "none": {"marker": 'x', "color": "dimgray", "zorder": 10, "label": "Baseline"}}
@@ -285,7 +285,7 @@ def generate_tables(fpr_test_path, fpr_real_test_path, filters, workloads):
 def plot_fpr():
     WORKLOADS = [("kuniform", "qcorrelated"), ("kuniform", "quniform"), ("books"), ("osm")]
     # RANGE_FILTERS = ["memento", "grafite", "surf", "proteus", "snarf", "oasis", "rencoder", "rosetta", "self1", "self2", "self3", "self4"]
-    RANGE_FILTERS = ["memento", "self1"]
+    RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4"]  # 新增
 
     fpr_test_path = f"{base_csv_path}/fpr_test"
     sorted_dirs = sorted(os.listdir(fpr_test_path), reverse=True)
@@ -427,7 +427,7 @@ def plot_correlated():
     XLABELS = [x / 10 for x in CORR_DEGREES]
     
     # RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "rsqf", "self1", "self2", "self3", "self4"]
-    RANGE_FILTERS = ["memento", "self1"]    
+    RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4"]    
     corr_test_path = f"{base_csv_path}/corr_test"
     sorted_dirs = sorted(os.listdir(corr_test_path), reverse=True)
     if len(sorted_dirs) < 1:

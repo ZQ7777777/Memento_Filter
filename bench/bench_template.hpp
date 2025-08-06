@@ -133,7 +133,6 @@ std::tuple<InputKeys<uint64_t>, Workload<uint64_t>, double> read_parser_argument
         if (files.size() == 3)
         {
             auto res_q = read_data_binary<int>(files[2], false);
-
             for (auto i = 0; i < left_q.size(); i++)
                 queries.emplace_back(left_q[i], right_q[i], res_q[i]);
         }

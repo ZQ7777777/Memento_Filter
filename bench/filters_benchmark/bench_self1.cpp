@@ -182,7 +182,7 @@ inline QF_Enhanced *init_self1(const t_itr begin, const t_itr end, const double 
     const uint64_t max_range_size = *std::max_element(query_lengths.begin(), query_lengths.end());
     const double load_factor = 0.95;
 
-    const double alpha = 0.005;  // 10% for FP cache
+    const double alpha = 0.05;  // 10% for FP cache
     const double effective_bpk = bpk * (1.0 - alpha);
 
     const uint64_t n_slots = n_items / load_factor + std::sqrt(n_items);
@@ -329,6 +329,8 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
     test_out.add_measure("n_keys", keys.size());
     test_out.add_measure("n_queries", queries.size());
     test_out.add_measure("false_positives", fp);
+    test_out.add_measure("fpCacheSize", f->fp_cache->size());
+    test_out.add_measure("fpCacheMaxSize", f->fp_cache->max_size);
     std::cout << "[+] test executed successfully, printing stats and closing." << std::endl;
 }
 

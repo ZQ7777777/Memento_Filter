@@ -197,28 +197,38 @@ Workload<uint64_t> generate_true_queries(InputKeys<uint64_t> &keys,uint64_t n_qu
 Workload<uint64_t> generate_synth_queries(const std::string& qdist, InputKeys<uint64_t> &keys,
                                           uint64_t n_queries, uint64_t min_range, uint64_t max_range,
                                           const double corr_degree, const long double stddev) {
-    std::set<std::tuple<uint64_t, uint64_t, bool>> q;
+    // std::set<std::tuple<uint64_t, uint64_t, bool>> q;
+    std::vector<std::tuple<uint64_t, uint64_t, bool>> q;
 
     std::vector<uint64_t> middle_points;
-
     if (qdist == "qnormal")
         middle_points = generate_keys_normal(10 * n_queries, stddev);
     else if (qdist == "quniform")
         middle_points = generate_keys_uniform(3 * n_queries);
     else // qdist == "qcorrelated"
     {
-        std::mt19937 g(seed);
+        // std::mt19937 g(seed);
+        // auto t = keys;
+        // std::shuffle(t.begin(), t.end(), g);
+        // auto i = 0;
+        // middle_points.reserve(n_queries);
+        // // exceed when Q/S > 1
+        // while (i < n_queries) {
+        //     auto n = std::min<uint64_t>(keys.size(), n_queries - i);
+        //     std::copy(t.begin() + i, t.begin() + i + n, middle_points.begin() + i);
+        // }
+        middle_points.resize(n_queries);
         auto t = keys;
-        std::shuffle(t.begin(), t.end(), g);
-        auto i = 0;
-        middle_points.reserve(n_queries);
-        while (i < n_queries) {
-            auto n = std::min<uint64_t>(keys.size(), n_queries - i);
-            std::copy(t.begin() + i, t.begin() + i + n, middle_points.begin() + i);
-            i += n;
+        size_t filled = 0;
+        while (filled < n_queries) {
+            std::mt19937 g(seed + filled); // 不同轮次用不同seed，避免重复
+            std::shuffle(t.begin(), t.end(), g);
+            size_t remain = n_queries - filled;
+            size_t to_copy = std::min(remain, t.size());
+            std::copy(t.begin(), t.begin() + to_copy, middle_points.begin() + filled);
+            filled += to_copy;
         }
     }
-
     std::mt19937 gen_range(seed);
     std::uniform_int_distribution<uint64_t> range_distr(std::max(min_range, 1UL), max_range);
 
@@ -229,8 +239,9 @@ Workload<uint64_t> generate_synth_queries(const std::string& qdist, InputKeys<ui
     std::uniform_int_distribution<int> pos_distr(1, middle_points.size() - 1);
     auto n_iterations = 0;
     auto i = 0;
+
     while (q.size() < n_queries) {
-        if (++n_iterations >= 100 * n_queries) {
+        if (++n_iterations >= 10000 * n_queries) {
             std::string in;
             std::cout << std::endl
                       << "application seems stuck, close it or save less query? (y/n/save) ";
@@ -259,13 +270,17 @@ Workload<uint64_t> generate_synth_queries(const std::string& qdist, InputKeys<ui
             continue;
 
         auto q_result = (range_size > 1) ? vector_range_query(keys, left, right) : vector_point_query(keys, left);
-        if (!allow_true_queries && q_result)
+        if (!allow_true_queries && q_result) 
             continue;
 
-        q.emplace(left, right, q_result);
+    
+
+        // q.emplace(left, right, q_result);
+        q.push_back(std::make_tuple(left, right, q_result));
         printProgress(((double) q.size()) / n_queries);
     }
-
+    std::cout << "qsize=" << q.size() << std::endl;
+    std::cout << "allow_true_queries=" << allow_true_queries << std::endl;
     Workload<uint64_t> q_out;
     q_out.reserve(q.size());
     for (auto i : q)

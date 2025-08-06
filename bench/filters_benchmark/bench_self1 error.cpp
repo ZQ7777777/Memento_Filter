@@ -16,119 +16,48 @@
 #include "memento_int.h"
 
 #include <unordered_set>
-#include <queue>
 
-// 混合 LRU 和频率的优先级 Cache
-struct FPCacheLRUFreq {
-    struct CacheEntry {
-        uint64_t key;
-        uint32_t frequency;
-        uint32_t last_access_time;
-        double priority_score;
-        
-        CacheEntry(uint64_t k, uint32_t f, uint32_t t) 
-            : key(k), frequency(f), last_access_time(t) {
-            // 优先级得分：频率权重 0.7，时间权重 0.3
-            priority_score = 0.7 * frequency + 0.3 * (1.0 / (t + 1));
-        }
-        
-        bool operator<(const CacheEntry& other) const {
-            return priority_score < other.priority_score;  // 得分低的先被淘汰
-        }
-    };
-    
-    std::priority_queue<CacheEntry> pq;
-    std::map<uint64_t, std::pair<uint32_t, uint32_t>> key_info; // key -> (frequency, last_time)
+// False Positive Cache structure
+struct FPCache {
+    std::unordered_set<uint64_t> cache;
     uint64_t max_size;
-    uint32_t current_time;
-    uint64_t cur_range_fp_size;
-
-    FPCacheLRUFreq(uint64_t size) : max_size(size), current_time(0) {}
-    // 优化后的范围查询 - O(log n + k)，k 是结果数量
-    uint64_t* get_keys_in_range(uint64_t left, uint64_t right) {
-        auto it_start = key_info.lower_bound(left);   // 找到第一个 >= left 的元素
-        auto it_end = key_info.upper_bound(right);    // 找到第一个 > right 的元素
-        uint64_t* keys = new uint64_t[std::distance(it_start, it_end)];
-        for (auto it = it_start; it != it_end; ++it) {
-            keys[std::distance(it_start, it)] = it->first;
-        }
-        cur_range_fp_size = std::distance(it_start, it_end);
-        return keys;
-    }
-
-
-
-
+    
+    FPCache(uint64_t size) : max_size(size) {}
+    
     bool contains(uint64_t key) {
-        auto it = key_info.find(key);
-        if (it != key_info.end()) {
-            // 更新访问信息
-            it->second.first++;  // frequency
-            it->second.second = ++current_time;  // last_access_time
+        if (cache.find(key) != cache.end()) {
             return true;
         }
         return false;
     }
     
     void insert(uint64_t key) {
-        current_time++;
-        
-        auto it = key_info.find(key);
-        if (it != key_info.end()) {
-            // 更新现有条目
-            it->second.first++;
-            it->second.second = current_time;
-            return;
+        if (cache.size() < max_size) {
+            cache.insert(key);
         }
-        
-        if (key_info.size() >= max_size) {
-            evict_lowest_priority();
-        }
-        
-        key_info[key] = {1, current_time};
-        pq.push(CacheEntry(key, 1, current_time));
+        // Simple eviction: could implement LRU later
     }
     
-private:
-    void evict_lowest_priority() {
-        while (!pq.empty()) {
-            auto entry = pq.top();
-            pq.pop();
-            
-            auto it = key_info.find(entry.key);
-            if (it != key_info.end() && 
-                it->second.first == entry.frequency && 
-                it->second.second == entry.last_access_time) {
-                // 找到要淘汰的条目
-                key_info.erase(it);
-                break;
-            }
-        }
-    }
-    
-public:
-    size_t size() const { return key_info.size();} 
     void clear() {
-        while (!pq.empty()) pq.pop();
-        key_info.clear();
-        current_time = 0;
+        cache.clear();
     }
-    ~FPCacheLRUFreq() {
-        clear();
+    
+    size_t size() const {
+        return cache.size();
     }
 };
 
 // Enhanced QF structure with FP cache
 struct QF_Enhanced {
     QF *qf;
-    FPCacheLRUFreq *fp_cache;
+    FPCache *fp_cache;
     double alpha;  // fraction of space for FP cache
     
     QF_Enhanced(QF *filter, double a) : qf(filter), alpha(a) {
         // Calculate cache size based on alpha
         uint64_t total_space = qf_get_total_size_in_bytes(filter);
-        uint64_t cache_entries = total_space * alpha / 2; // each entey has 2 bytes
-        fp_cache = new FPCacheLRUFreq(cache_entries);
+        uint64_t cache_entries = total_space * alpha;
+        fp_cache = new FPCache(cache_entries);
         std::cerr << "FP Cache size: " << cache_entries << " entries" << std::endl;
     }
     
@@ -224,7 +153,7 @@ inline void check_iteration_validity(QF *qf, bool mode)
 }
 
 template <typename t_itr, typename... Args>
-inline QF_Enhanced *init_self2(const t_itr begin, const t_itr end, const double bpk, Args... args)
+inline QF_Enhanced *init_self1(const t_itr begin, const t_itr end, const double bpk, Args... args)
 {
     auto&& t = std::forward_as_tuple(args...);
     auto queries_temp = std::get<0>(t);
@@ -239,7 +168,7 @@ inline QF_Enhanced *init_self2(const t_itr begin, const t_itr end, const double 
     const uint64_t max_range_size = *std::max_element(query_lengths.begin(), query_lengths.end());
     const double load_factor = 0.95;
 
-    const double alpha = 0.05;  // 10% for FP cache
+    const double alpha = 0.01;  // 10% for FP cache
     const double effective_bpk = bpk * (1.0 - alpha);
 
     const uint64_t n_slots = n_items / load_factor + std::sqrt(n_items);
@@ -298,7 +227,7 @@ inline QF_Enhanced *init_self2(const t_itr begin, const t_itr end, const double 
 }
 
 template <typename value_type>
-inline bool query_self2(QF_Enhanced *f, const value_type left, const value_type right)
+inline bool query_self1(QF_Enhanced *f, const value_type left, const value_type right)
 {
     value_type l_key = left >> f->qf->metadata->memento_bits;
     value_type l_memento = left & ((1ULL << f->qf->metadata->memento_bits) - 1);
@@ -314,9 +243,11 @@ inline bool query_self2(QF_Enhanced *f, const value_type left, const value_type 
     return qf_range_query(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK);
 }
 
-inline size_t size_self2(QF_Enhanced *f)
+inline size_t size_self1(QF_Enhanced *f)
 {
-    return qf_get_total_size_in_bytes(f->qf) + f->fp_cache->max_size * 2; // bytes, main size + FP cache size
+    size_t main_size = qf_get_total_size_in_bytes(f->qf);
+    size_t cache_size = f->fp_cache->max_size;  
+    return main_size + cache_size;
 }
 
 template <typename InitFun, typename RangeFun, typename SizeFun, typename key_type, typename... Args>
@@ -325,7 +256,7 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
     auto f = init_f(keys.begin(), keys.end(), param, args...);
 
     std::cout << "[+] data structure constructed in " << test_out["build_time"] << "ms, starting queries" << std::endl;
-    auto fp = 0, fn = 0;
+    auto fp = 0, fn = 0, falsequery = 0, positivequery = 0, cnt = 0;
     
     start_timer(query_time);
     for (auto q : queries)
@@ -354,38 +285,46 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
             }
         } else {
             uint64_t fp_key = 0;
-            uint64_t* fps = f->fp_cache->get_keys_in_range(left, right);
-            uint64_t fps_size = f->fp_cache->cur_range_fp_size;
-            query_result = qf_range_query_fp_learning2(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK, &fp_key, fps, fps_size);
-            // if (query_result && f->fp_cache->contains(fp_key)) {
-            //     query_result = false;  // False positive detected
-            // }
+            query_result = qf_range_query_fp_learning(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK, &fp_key);
+            if (query_result && f->fp_cache->contains(fp_key)) {
+                query_result = false;  // False positive detected
+                cnt++;
+            }
             if (query_result && !original_result)
             {
                 fp++;
                 assert(fp_key >= left && fp_key <= right);
                 f->fp_cache->insert(fp_key);
+                assert(f->fp_cache->contains(fp_key));
             }
             else if (!query_result && original_result)
             {
-                std::cerr << "[!] alert, found false negative!" << std::endl;
+                // std::cerr << "[!] alert, found false negative!" << std::endl;
                 fn++;
             }
 
+
+            if (!original_result) {
+                falsequery++;
+            } else {
+                positivequery++;
+            }
         }
     }
     stop_timer(query_time);
 
     auto size = size_f(f);
-    test_out.add_measure("size", size);
-    test_out.add_measure("bpk", TO_BPK(size, keys.size()));
-    test_out.add_measure("fpr", ((double)fp / queries.size()));
+    // test_out.add_measure("size", size);
+    // test_out.add_measure("bpk", TO_BPK(size, keys.size()));
+    // test_out.add_measure("fpr", ((double)fp / queries.size()));
     test_out.add_measure("false_neg", fn);
     test_out.add_measure("n_keys", keys.size());
     test_out.add_measure("n_queries", queries.size());
     test_out.add_measure("false_positives", fp);
-    test_out.add_measure("fpCacheSize", f->fp_cache->size());
-    test_out.add_measure("fpCacheMaxSize", f->fp_cache->max_size);
+    test_out.add_measure("false_queries", falsequery);
+    test_out.add_measure("positive_queries", positivequery);
+    test_out.add_measure("false_positive_cache_size", f->fp_cache->size());
+    test_out.add_measure("cnt", cnt);
     std::cout << "[+] test executed successfully, printing stats and closing." << std::endl;
 }
 
@@ -406,14 +345,10 @@ int main(int argc, char const *argv[])
 
     auto [ keys, queries, arg, memento_size ] = read_parser_arguments_memento(parser);
 
-    experiment_with_fp_learning(pass_fun(init_self2), pass_ref(query_self2), 
-                pass_ref(size_self2), arg, keys, queries, queries, memento_size);
+    experiment_with_fp_learning(pass_fun(init_self1), pass_ref(query_self1), 
+                pass_ref(size_self1), arg, keys, queries, queries, memento_size);
 
     print_test();
 
     return 0;
 }
-
-
-
-

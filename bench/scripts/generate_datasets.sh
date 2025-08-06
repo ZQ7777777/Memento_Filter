@@ -91,10 +91,12 @@ done
 
 
 N_KEYS=200000000
-N_QUERIES=10000000
+N_QUERIES=100000000
 if [ "$SIZE" == "${SIZE_OPTIONS[0]}" ]; then
+    # N_KEYS=200000
+    # N_QUERIES=10000
     N_KEYS=200000
-    N_QUERIES=10000
+    N_QUERIES=2000000
 elif [ "$SIZE" == "${SIZE_OPTIONS[1]}" ]; then
     N_KEYS=2000000
     N_QUERIES=100000
@@ -116,7 +118,8 @@ generate_corr_test() {
 
   while [ $i -le 10 ]
   do
-      $WORKLOAD_GEN_PATH -n ${N_KEYS} -q ${N_QUERIES} --mixed --kdist kuniform --qdist qcorrelated --corr-degree ${x}
+     # --allow-true
+      $WORKLOAD_GEN_PATH -n ${N_KEYS} -q ${N_QUERIES} --mixed --kdist kuniform --qdist qcorrelated --corr-degree ${x} --allow-true
       if [ -d "kuniform_${i}/" ]; then
           rm -rf kuniform_${i}/
       fi

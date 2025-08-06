@@ -31,6 +31,7 @@ physcpubind = 16
 
 # ds_list = ["memento", "grafite", "surf", "rosetta", "snarf", "proteus", "rencoder", "oasis"]
 ds_list = ["memento","self1","self2","self3","self4"]
+# ds_list = ["self4"]
 # ds_list_with_bucketing = ds_list.copy() + ['bucketing']
 memento_sizes_to_test = []
 
@@ -95,16 +96,29 @@ def execute_test(ds, keys_path, data, path_csv):
     for arg in param:
         if ds == "memento" and len(memento_sizes_to_test) > 0:
             for memento_size in memento_sizes_to_test:
-                command = f'{ds_benchmark_executables[ds]} {arg} --memento-size {memento_size} --keys {keys_path} --workload {data["left"]} {data["right"]} --csv {path_csv}'
+                # command = f'{ds_benchmark_executables[ds]} {arg} --memento-size {memento_size} --keys {keys_path} --workload {data["left"]} {data["right"]} --csv {path_csv}'
+                if 'result' in data:
+                    command = f'{ds_benchmark_executables[ds]} {arg} --memento-size {memento_size} --keys {keys_path} --workload {data["left"]} {data["right"]} {data["result"]} --csv {path_csv}'
+                else:
+                    command = f'{ds_benchmark_executables[ds]} {arg} --memento-size {memento_size} --keys {keys_path} --workload {data["left"]} {data["right"]} --csv {path_csv}'
                 print('{:^24s}'.format(f"[ starting \"{command}\"]"))
                 stream = os.popen(command)
                 print(stream.read())
                 print('{:^24s}'.format("[ command finished ]"))
         else:
             if 'rosetta' not in ds and use_numa:
-                command = f'numactl --membind={membind} --physcpubind={physcpubind} {ds_benchmark_executables[ds]} {arg} --keys {keys_path} --workload {data["left"]} {data["right"]} --csv {path_csv}'
+                if 'result' in data:
+                    command = f'numactl --membind={membind} --physcpubind={physcpubind} {ds_benchmark_executables[ds]} {arg} --keys {keys_path} --workload {data["left"]} {data["right"]} {data["result"]} --csv {path_csv}'
+                else:
+                    command = f'numactl --membind={membind} --physcpubind={physcpubind} {ds_benchmark_executables[ds]} {arg} --keys {keys_path} --workload {data["left"]} {data["right"]} --csv {path_csv}'
+
+                # command = f'numactl --membind={membind} --physcpubind={physcpubind} {ds_benchmark_executables[ds]} {arg} --keys {keys_path} --workload {data["left"]} {data["right"]} --csv {path_csv}'
             else:
-                command = f'{ds_benchmark_executables[ds]} {arg} --keys {keys_path} --workload {data["left"]} {data["right"]} --csv {path_csv}'
+                # command = f'{ds_benchmark_executables[ds]} {arg} --keys {keys_path} --workload {data["left"]} {data["right"]} --csv {path_csv}'
+                if 'result' in data:
+                    command = f'{ds_benchmark_executables[ds]} {arg} --keys {keys_path} --workload {data["left"]} {data["right"]} {data["result"]} --csv {path_csv}'
+                else:
+                    command = f'{ds_benchmark_executables[ds]} {arg} --keys {keys_path} --workload {data["left"]} {data["right"]} --csv {path_csv}'
 
             print('{:^24s}'.format(f"[ starting \"{command}\"]"))
             stream = os.popen(command)
@@ -174,13 +188,20 @@ def parse_tests(test_dir_path):
 
                 if Path(f'{w}/point').exists():
                     left = right = Path(f'{w}/point')
+                    result = Path(f'{w}/result') if Path(f'{w}/result').exists() else None
                 else:
                     left = Path(f'{w}/left')
                     right = Path(f'{w}/right')
+                    result = Path(f'{w}/result') if Path(f'{w}/result').exists() else None
                 if not left.is_file() or not right.is_file():
                     raise FileNotFoundError(f"error parsing the datasets, workloads not found in {w}")
-                curr_data['workloads'].append({'range_size': work_param[0],
-                                               'path': w, 'name': w, 'left': left, 'right': right})
+                if result:
+                    curr_data['workloads'].append({'range_size': work_param[0],
+                                                   'path': w, 'name': w, 'left': left, 'right': right, 'result': result})
+                else:
+                    curr_data['workloads'].append({'range_size': work_param[0],
+                                                   'path': w, 'name': w, 'left': left, 'right': right})
+
         if 'keys_path' not in curr_data:
             raise FileNotFoundError("error, cannot find the keys file in %s" % subdir)
 
@@ -220,7 +241,7 @@ if __name__ == "__main__":
         ds_list = ['grafite']
         ds_parameters['grafite'] = [20]  # 20 bpk (L = 2^8, eps = 0.001)
     elif test_name == 'corr':
-        ds_list = ['rsqf'] + ds_list
+        # ds_list = ['rsqf'] + ds_list
         ds_parameters = {'memento': [20],
                          'grafite': [20],
                          'surf': [10],  # suffix bits

@@ -15,12 +15,13 @@
 #include "memento.h"
 #include "memento_int.h"
 
-#include <unordered_set>
+#include <set>
 
 // False Positive Cache structure
 struct FPCache {
-    std::unordered_set<uint64_t> cache;
+    std::set<uint64_t> cache;
     uint64_t max_size;
+    uint64_t cur_range_fp_size;
     
     FPCache(uint64_t size) : max_size(size) {}
     
@@ -45,6 +46,19 @@ struct FPCache {
     size_t size() const {
         return cache.size();
     }
+    // 优化后的范围查询 - O(log n + k)，k 是结果数量
+    uint64_t* get_keys_in_range(uint64_t left, uint64_t right) {
+        
+        auto it_start = cache.lower_bound(left);   // 找到第一个 >= left 的元素
+        auto it_end = cache.upper_bound(right);    // 找到第一个 > right 的元素
+        uint64_t* keys = new uint64_t[std::distance(it_start, it_end)];
+        for (auto it = it_start; it != it_end; ++it) {
+            keys[std::distance(it_start, it)] = *it;
+        }
+        cur_range_fp_size = std::distance(it_start, it_end);
+        return keys;
+    }
+
 };
 
 // Enhanced QF structure with FP cache
@@ -285,10 +299,12 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
             }
         } else {
             uint64_t fp_key = 0;
-            query_result = qf_range_query_fp_learning(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK, &fp_key);
-            if (query_result && f->fp_cache->contains(fp_key)) {
-                query_result = false;  // False positive detected
-            }
+            uint64_t* fps = f->fp_cache->get_keys_in_range(left, right);
+            uint64_t fps_size = f->fp_cache->cur_range_fp_size;
+            query_result = qf_range_query_fp_learning2(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK, &fp_key, fps, fps_size);
+            // if (query_result && f->fp_cache->contains(fp_key)) {
+            //     query_result = false;  // False positive detected
+            // }
             if (query_result && !original_result)
             {
                 fp++;
@@ -313,6 +329,8 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
     test_out.add_measure("n_keys", keys.size());
     test_out.add_measure("n_queries", queries.size());
     test_out.add_measure("false_positives", fp);
+    test_out.add_measure("fpCacheSize", f->fp_cache->size());
+    test_out.add_measure("fpCacheMaxSize", f->fp_cache->max_size);
     std::cout << "[+] test executed successfully, printing stats and closing." << std::endl;
 }
 
