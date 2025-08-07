@@ -284,8 +284,8 @@ def generate_tables(fpr_test_path, fpr_real_test_path, filters, workloads):
 
 def plot_fpr():
     WORKLOADS = [("kuniform", "qcorrelated"), ("kuniform", "quniform"), ("books"), ("osm")]
-    # RANGE_FILTERS = ["memento", "grafite", "surf", "proteus", "snarf", "oasis", "rencoder", "rosetta", "self1", "self2", "self3", "self4"]
-    RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4"]  # 新增
+    RANGE_FILTERS = ["memento", "grafite", "surf", "proteus", "snarf", "oasis", "rencoder", "rosetta", "self1", "self2", "self3", "self4"]
+    # RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4"]  # 新增
 
     fpr_test_path = f"{base_csv_path}/fpr_test"
     sorted_dirs = sorted(os.listdir(fpr_test_path), reverse=True)

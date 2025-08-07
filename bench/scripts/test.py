@@ -30,8 +30,8 @@ membind = 0
 physcpubind = 16
 
 # ds_list = ["memento", "grafite", "surf", "rosetta", "snarf", "proteus", "rencoder", "oasis"]
-ds_list = ["memento","self1","self2","self3","self4"]
-# ds_list = ["self4"]
+# ds_list = ["memento", "grafite", "surf", "rosetta", "snarf", "proteus", "rencoder", "oasis","self1","self2","self3","self4"]
+ds_list = ["memento", "self1", "self2", "self3", "self4"]
 # ds_list_with_bucketing = ds_list.copy() + ['bucketing']
 memento_sizes_to_test = []
 
@@ -241,7 +241,7 @@ if __name__ == "__main__":
         ds_list = ['grafite']
         ds_parameters['grafite'] = [20]  # 20 bpk (L = 2^8, eps = 0.001)
     elif test_name == 'corr':
-        # ds_list = ['rsqf'] + ds_list
+        ds_list = ['rsqf'] + ds_list
         ds_parameters = {'memento': [20],
                          'grafite': [20],
                          'surf': [10],  # suffix bits

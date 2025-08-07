@@ -228,6 +228,9 @@ Workload<uint64_t> generate_synth_queries(const std::string& qdist, InputKeys<ui
             std::copy(t.begin(), t.begin() + to_copy, middle_points.begin() + filled);
             filled += to_copy;
         }
+        // shuffle middle_points
+        std::mt19937 g(seed - 1);
+        std::shuffle(middle_points.begin(), middle_points.end(), g);
     }
     std::mt19937 gen_range(seed);
     std::uniform_int_distribution<uint64_t> range_distr(std::max(min_range, 1UL), max_range);

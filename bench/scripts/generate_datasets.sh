@@ -96,7 +96,7 @@ if [ "$SIZE" == "${SIZE_OPTIONS[0]}" ]; then
     # N_KEYS=200000
     # N_QUERIES=10000
     N_KEYS=200000
-    N_QUERIES=2000000
+    N_QUERIES=10000000
 elif [ "$SIZE" == "${SIZE_OPTIONS[1]}" ]; then
     N_KEYS=2000000
     N_QUERIES=100000
