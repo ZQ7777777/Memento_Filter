@@ -37,6 +37,7 @@ auto s = 10999;
 
 bool save_binary = true;
 bool allow_true_queries = false;
+bool ensue_true_queries = false;
 bool mixed_queries = false;
 
 auto default_n_keys = 200'000'000;
@@ -267,6 +268,9 @@ Workload<uint64_t> generate_synth_queries(const std::string& qdist, InputKeys<ui
         else // qdist == qcorrelated
         {
             auto p = middle_points[q.size()] + corr_distr(gen_corr);
+            if (ensue_true_queries) {
+                p = middle_points[q.size()];
+            }
             std::tie(left, right) = point_to_range(p, range_size);
         }
         if (std::numeric_limits<uint64_t>::max() - left < range_size)
@@ -275,6 +279,9 @@ Workload<uint64_t> generate_synth_queries(const std::string& qdist, InputKeys<ui
         auto q_result = (range_size > 1) ? vector_range_query(keys, left, right) : vector_point_query(keys, left);
         if (!allow_true_queries && q_result) 
             continue;
+        if (ensue_true_queries && !q_result) {
+            continue;
+        }
 
     
 
@@ -284,6 +291,7 @@ Workload<uint64_t> generate_synth_queries(const std::string& qdist, InputKeys<ui
     }
     std::cout << "qsize=" << q.size() << std::endl;
     std::cout << "allow_true_queries=" << allow_true_queries << std::endl;
+    std::cout << "ensue_true_queries=" << ensue_true_queries << std::endl;
     Workload<uint64_t> q_out;
     q_out.reserve(q.size());
     for (auto i : q)
@@ -572,6 +580,10 @@ int main(int argc, char const *argv[]) {
             .help("allows the generation of true queries in the workload (note, this will produce 3 files)")
             .implicit_value(true)
             .default_value(false);
+    parser.add_argument("--ensure-true")
+            .help("ensures the generation of true queries in the workload")
+            .implicit_value(true)
+            .default_value(false);     
 
     parser.add_argument("--mixed")
             .help("generates mixed range queries in the range [0, 2^last_range_size]")
@@ -612,6 +624,7 @@ int main(int argc, char const *argv[]) {
     auto corr_degree = parser.get<double>("--corr-degree");
 
     allow_true_queries = parser.get<bool>("--allow-true");
+    ensue_true_queries = parser.get<bool>("--ensure-true");
     mixed_queries = parser.get<bool>("--mixed");
 
     assert((n_keys > 0) && (n_queries > 0));

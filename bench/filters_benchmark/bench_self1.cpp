@@ -305,6 +305,7 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
             // if (query_result && f->fp_cache->contains(fp_key)) {
             //     query_result = false;  // False positive detected
             // }
+            assert (original_result && query_result);
             if (query_result && !original_result)
             {
                 fp++;

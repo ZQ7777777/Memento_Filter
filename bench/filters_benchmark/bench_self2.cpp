@@ -55,6 +55,20 @@ struct FPCacheLRUFreq {
         cur_range_fp_size = std::distance(it_start, it_end);
         return keys;
     }
+    // 检查 FP Cache 是否包含指定的 FP
+    // 后续根据potential_fp_keys的有序性考虑优化
+    bool contain_all_keys(uint64_t *fp_keys, uint64_t *fp_keys_size, 
+         uint64_t *potential_fp_keys, uint64_t *potential_fp_keys_size) {
+        bool all_found = true;
+        for (uint64_t i = 0; i < *fp_keys_size; ++i) {
+            if (!key_info.count(fp_keys[i])) {
+                all_found = false;
+                potential_fp_keys[*potential_fp_keys_size] = fp_keys[i];
+                (*potential_fp_keys_size)++;
+            }
+        }
+        return all_found;
+    }
 
 
 
@@ -239,7 +253,7 @@ inline QF_Enhanced *init_self2(const t_itr begin, const t_itr end, const double 
     const uint64_t max_range_size = *std::max_element(query_lengths.begin(), query_lengths.end());
     const double load_factor = 0.95;
 
-    const double alpha = 0.05;  // 10% for FP cache
+    const double alpha = 0.01;  // 10% for FP cache
     const double effective_bpk = bpk * (1.0 - alpha);
 
     const uint64_t n_slots = n_items / load_factor + std::sqrt(n_items);
@@ -326,7 +340,7 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
 
     std::cout << "[+] data structure constructed in " << test_out["build_time"] << "ms, starting queries" << std::endl;
     auto fp = 0, fn = 0;
-    
+
     start_timer(query_time);
     for (auto q : queries)
     {
@@ -353,24 +367,33 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
                 fn++;
             }
         } else {
-            uint64_t fp_key = 0;
-            uint64_t* fps = f->fp_cache->get_keys_in_range(left, right);
-            uint64_t fps_size = f->fp_cache->cur_range_fp_size;
-            query_result = qf_range_query_fp_learning2(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK, &fp_key, fps, fps_size);
-            // if (query_result && f->fp_cache->contains(fp_key)) {
-            //     query_result = false;  // False positive detected
-            // }
-            if (query_result && !original_result)
-            {
-                fp++;
-                assert(fp_key >= left && fp_key <= right);
-                f->fp_cache->insert(fp_key);
+            // uint64_t fp_key = 0;
+            // uint64_t* fp_keys;
+            uint64_t* fp_keys = new uint64_t[right - left + 1];
+            uint64_t fp_keys_size = 0;
+            // query_result = qf_range_query_fp_learning2(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK, &fp_key, fps, fps_size);
+            query_result = qf_range_query_fp_learning3(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK, fp_keys, &fp_keys_size);
+            if (query_result) {
+                uint64_t *potential_fp_keys = new uint64_t[right - left + 1];
+                uint64_t potential_fp_keys_size = 0;
+                if (f->fp_cache->contain_all_keys(fp_keys, &fp_keys_size, potential_fp_keys, &potential_fp_keys_size)) {
+                    query_result = false; // 如果 FP Cache 包含所有 FP，则认为查询结果为 false]
+                } 
+                if (query_result && !original_result) {
+                    fp++;
+                    // assert(potential_fp_keys[i] >= left && potential_fp_keys[i] <= right);
+                    for (uint64_t i = 0; i < potential_fp_keys_size; ++i) {
+                        f->fp_cache->insert(potential_fp_keys[i]);
+                    }
+                }
+                delete[] potential_fp_keys;
             }
             else if (!query_result && original_result)
             {
                 std::cerr << "[!] alert, found false negative!" << std::endl;
                 fn++;
             }
+            delete[] fp_keys;
 
         }
     }

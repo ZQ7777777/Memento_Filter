@@ -326,7 +326,7 @@ void experiment_with_fp_learning_self4(InitFun init_f, RangeFun range_f, SizeFun
 
     std::cout << "[+] data structure constructed in " << test_out["build_time"] << "ms, starting queries" << std::endl;
     auto fp = 0, fn = 0;
-    
+
     start_timer(query_time);
     for (auto q : queries)
     {
@@ -382,6 +382,7 @@ void experiment_with_fp_learning_self4(InitFun init_f, RangeFun range_f, SizeFun
     test_out.add_measure("false_positives", fp);
     test_out.add_measure("fpCacheSize", f->fp_cache->size());
     test_out.add_measure("fpCacheMaxSize", f->fp_cache->max_size);
+
     std::cout << "[+] test executed successfully, printing stats and closing." << std::endl;
 }
 
