@@ -29,7 +29,7 @@ struct FPCacheLRUFreq {
         CacheEntry(uint64_t k, uint32_t f, uint32_t t) 
             : key(k), frequency(f), last_access_time(t) {
             // 优先级得分：频率权重 0.7，时间权重 0.3
-            priority_score = 0.7 * frequency + 0.3 * (1.0 / (t + 1));
+            priority_score = 0.5 * frequency + 0.5 * (1.0 / (t + 1));
         }
         
         bool operator<(const CacheEntry& other) const {
@@ -253,7 +253,7 @@ inline QF_Enhanced *init_self2(const t_itr begin, const t_itr end, const double 
     const uint64_t max_range_size = *std::max_element(query_lengths.begin(), query_lengths.end());
     const double load_factor = 0.95;
 
-    const double alpha = 0.02;  // 10% for FP cache
+    const double alpha = 0.01;  // 10% for FP cache
     const double effective_bpk = bpk * (1.0 - alpha);
 
     const uint64_t n_slots = n_items / load_factor + std::sqrt(n_items);
