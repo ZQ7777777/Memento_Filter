@@ -97,6 +97,8 @@ struct FPCacheLRUFreq {
         
         if (key_info.size() >= max_size) {
             evict_lowest_priority();
+            key_info[key] = {1, current_time};
+            pq.push(CacheEntry(key, 1, current_time));
             return 0; // 表示发生了淘汰
         }
         

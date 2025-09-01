@@ -28,7 +28,7 @@ struct FPCacheLRUFreq {
 
         CacheEntry(uint64_t key, uint32_t f, uint32_t t) : key(key), frequency(f), last_access_time(t) {
             // 优先级得分：频率权重 0.7，时间权重 0.3
-            priority_score = 0.5 * frequency + 0.5 * last_access_time;
+            priority_score = 0.3 * frequency + 0.7 * last_access_time;
         }
 
         // void update(uint32_t f, uint32_t t) {
@@ -100,6 +100,8 @@ struct FPCacheLRUFreq {
         // 检查是否需要淘汰
         if (pq_iterators.size() >= max_size) {
             evict_lowest_priority();
+            auto new_it = pq.insert(CacheEntry(key, 1, current_time));
+            pq_iterators[key] = new_it;
             return 0; // 表示发生了淘汰
         }
         

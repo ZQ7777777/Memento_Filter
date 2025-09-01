@@ -25,28 +25,20 @@ struct FPCacheLRUFreq {
         uint32_t frequency;
         uint32_t last_access_time;
         double priority_score;
-
-        CacheEntry(uint64_t key, uint32_t f, uint32_t t) : key(key), frequency(f), last_access_time(t) {
+        
+        CacheEntry(uint64_t k, uint32_t f, uint32_t t) 
+            : key(k), frequency(f), last_access_time(t) {
             // 优先级得分：频率权重 0.7，时间权重 0.3
-            priority_score = 0 * frequency + 1.0 * last_access_time;
+            priority_score = 0.7 * frequency + 0.3 * last_access_time;
         }
-
-        // void update(uint32_t f, uint32_t t) {
-        //     frequency = f;
-        //     last_access_time = t;
-        //     priority_score = 1.0 * frequency + 0 * last_access_time;
-        // }
-
-    
         
         bool operator<(const CacheEntry& other) const {
             return priority_score < other.priority_score;  // 得分低的先被淘汰
         }
     };
     
-    std::multiset<CacheEntry> pq;
-    // std::map<uint64_t, std::pair<uint32_t, uint32_t>> key_info; // key -> (frequency, last_time)
-    std::map<uint64_t, std::multiset<CacheEntry>::iterator> pq_iterators; // key -> iterator in pq
+    std::priority_queue<CacheEntry> pq;
+    std::map<uint64_t, std::pair<uint32_t, uint32_t>> key_info; // key -> (frequency, last_time)
     uint64_t max_size;
     uint32_t current_time;
     uint64_t cur_range_fp_size;
@@ -54,8 +46,8 @@ struct FPCacheLRUFreq {
     FPCacheLRUFreq(uint64_t size) : max_size(size), current_time(0) {}
     // 优化后的范围查询 - O(log n + k)，k 是结果数量
     uint64_t* get_keys_in_range(uint64_t left, uint64_t right) {
-        auto it_start = pq_iterators.lower_bound(left);   // 找到第一个 >= left 的元素
-        auto it_end = pq_iterators.upper_bound(right);    // 找到第一个 > right 的元素
+        auto it_start = key_info.lower_bound(left);   // 找到第一个 >= left 的元素
+        auto it_end = key_info.upper_bound(right);    // 找到第一个 > right 的元素
         uint64_t* keys = new uint64_t[std::distance(it_start, it_end)];
         for (auto it = it_start; it != it_end; ++it) {
             keys[std::distance(it_start, it)] = it->first;
@@ -69,7 +61,7 @@ struct FPCacheLRUFreq {
          uint64_t *potential_fp_keys, uint64_t *potential_fp_keys_size) {
         bool all_found = true;
         for (uint64_t i = 0; i < *fp_keys_size; ++i) {
-            if (!pq_iterators.count(fp_keys[i])) {
+            if (!key_info.count(fp_keys[i])) {
                 all_found = false;
                 potential_fp_keys[*potential_fp_keys_size] = fp_keys[i];
                 (*potential_fp_keys_size)++;
@@ -79,55 +71,68 @@ struct FPCacheLRUFreq {
     }
 
 
+
+
     bool contains(uint64_t key) {
-        current_time++;
-        auto it = pq_iterators.find(key);
-        if (it != pq_iterators.end()) {
-            // 获取当前频率并增加1
-            uint32_t new_frequency = it->second->frequency + 1;
-            // 先删除旧元素
-            pq.erase(it->second);
-            // 插入更新后的元素
-            auto new_it = pq.insert(CacheEntry(key, new_frequency, current_time));
-            pq_iterators[key] = new_it;
-            
+        auto it = key_info.find(key);
+        if (it != key_info.end()) {
+            // 更新访问信息
+            it->second.first++;  // frequency
+            it->second.second = ++current_time;  // last_access_time
+            // 向 pq 添加更新后的条目
+            pq.push(CacheEntry(key, it->second.first, it->second.second));
             return true;
         }
         return false;
     }
     
     int insert(uint64_t key) {
-        // 检查是否需要淘汰
-        if (pq_iterators.size() >= max_size) {
+        current_time++;
+        
+        auto it = key_info.find(key);
+        if (it != key_info.end()) {
+            // 更新现有条目
+            it->second.first++;
+            it->second.second = current_time;
+            // 向 pq 添加更新后的条目
+            pq.push(CacheEntry(key, it->second.first, it->second.second));
+            return -1;
+        }
+        
+        if (key_info.size() >= max_size) {
             evict_lowest_priority();
+            key_info[key] = {1, current_time};
+            pq.push(CacheEntry(key, 1, current_time));
             return 0; // 表示发生了淘汰
         }
         
-        // 插入新元素
-        auto new_it = pq.insert(CacheEntry(key, 1, current_time));
-        pq_iterators[key] = new_it;
+        key_info[key] = {1, current_time};
+        pq.push(CacheEntry(key, 1, current_time));
         return 1; // 表示成功插入
     }
     
 private:
     void evict_lowest_priority() {
-        if (!pq.empty()) {
-            auto entry = *pq.begin();  // 最小优先级的条目
-            auto key = entry.key;
+        while (!pq.empty()) {
+            auto entry = pq.top();
+            pq.pop();
             
-            // 从数据结构中移除
-            pq.erase(pq.begin());
-
-            pq_iterators.erase(key);
+            auto it = key_info.find(entry.key);
+            if (it != key_info.end() && 
+                it->second.first == entry.frequency && 
+                it->second.second == entry.last_access_time) {
+                // 找到要淘汰的条目
+                key_info.erase(it);
+                break;
+            }
         }
     }
     
 public:
-    size_t size() const { return pq_iterators.size();} 
+    size_t size() const { return key_info.size();} 
     void clear() {
-        pq.clear();
-        // key_info.clear();
-        pq_iterators.clear();
+        while (!pq.empty()) pq.pop();
+        key_info.clear();
         current_time = 0;
     }
     ~FPCacheLRUFreq() {
@@ -344,7 +349,6 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
     std::cout << "[+] data structure constructed in " << test_out["build_time"] << "ms, starting queries" << std::endl;
     auto fp = 0, fn = 0;
     auto evictCnt = 0;
-
     start_timer(query_time);
     for (auto q : queries)
     {
@@ -387,8 +391,8 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
                     fp++;
                     // assert(potential_fp_keys[i] >= left && potential_fp_keys[i] <= right);
                     for (uint64_t i = 0; i < potential_fp_keys_size; ++i) {
-                        int result = f->fp_cache->insert(potential_fp_keys[i]);
-                        if (result == 0) {
+                        int res = f->fp_cache->insert(potential_fp_keys[i]);
+                        if (res == 0) {
                             // 发生了淘汰
                             evictCnt++;
                         }
