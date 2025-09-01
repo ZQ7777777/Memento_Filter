@@ -84,7 +84,7 @@ struct FPCacheLRUFreq {
         return false;
     }
     
-    void insert(uint64_t key) {
+    int insert(uint64_t key) {
         current_time++;
         
         auto it = key_info.find(key);
@@ -92,15 +92,17 @@ struct FPCacheLRUFreq {
             // 更新现有条目
             it->second.first++;
             it->second.second = current_time;
-            return;
+            return -1;
         }
         
         if (key_info.size() >= max_size) {
             evict_lowest_priority();
+            return 0; // 表示发生了淘汰
         }
         
         key_info[key] = {1, current_time};
         pq.push(CacheEntry(key, 1, current_time));
+        return 1; // 表示成功插入
     }
     
 private:
@@ -340,7 +342,7 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
 
     std::cout << "[+] data structure constructed in " << test_out["build_time"] << "ms, starting queries" << std::endl;
     auto fp = 0, fn = 0;
-
+    auto evictCnt = 0;
     start_timer(query_time);
     for (auto q : queries)
     {
@@ -383,7 +385,11 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
                     fp++;
                     // assert(potential_fp_keys[i] >= left && potential_fp_keys[i] <= right);
                     for (uint64_t i = 0; i < potential_fp_keys_size; ++i) {
-                        f->fp_cache->insert(potential_fp_keys[i]);
+                        int res = f->fp_cache->insert(potential_fp_keys[i]);
+                        if (res == 0) {
+                            // 发生了淘汰
+                            evictCnt++;
+                        }
                     }
                 }
                 delete[] potential_fp_keys;
@@ -409,6 +415,7 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
     test_out.add_measure("false_positives", fp);
     test_out.add_measure("fpCacheSize", f->fp_cache->size());
     test_out.add_measure("fpCacheMaxSize", f->fp_cache->max_size);
+    test_out.add_measure("evictCount", evictCnt);
     std::cout << "[+] test executed successfully, printing stats and closing." << std::endl;
 }
 
