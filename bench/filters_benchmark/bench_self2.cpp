@@ -149,7 +149,7 @@ struct QF_Enhanced {
     QF_Enhanced(QF *filter, double a) : qf(filter), alpha(a) {
         // Calculate cache size based on alpha
         uint64_t total_space = qf_get_total_size_in_bytes(filter);
-        uint64_t cache_entries = total_space * alpha / 2; // each entey has 2 bytes
+        uint64_t cache_entries = total_space * alpha / 16; // each entry has 2 64bits
         fp_cache = new FPCacheLRUFreq(cache_entries);
         std::cerr << "FP Cache size: " << cache_entries << " entries" << std::endl;
     }
@@ -338,7 +338,7 @@ inline bool query_self2(QF_Enhanced *f, const value_type left, const value_type 
 
 inline size_t size_self2(QF_Enhanced *f)
 {
-    return qf_get_total_size_in_bytes(f->qf) + f->fp_cache->max_size * 2; // bytes, main size + FP cache size
+    return qf_get_total_size_in_bytes(f->qf) + f->fp_cache->max_size * 16; // bytes, main size + FP cache size
 }
 
 template <typename InitFun, typename RangeFun, typename SizeFun, typename key_type, typename... Args>
