@@ -48,4 +48,6 @@ _deps
 # Executables
 *.exe
 *.out
-*.app
+*.appenv/
+venv/
+env/
