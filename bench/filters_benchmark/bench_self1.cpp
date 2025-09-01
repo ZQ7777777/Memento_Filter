@@ -30,8 +30,8 @@ struct QF_Enhanced {
         uint64_t total_space = qf_get_total_size_in_bytes(filter);
         // uint64_t cache_entries = total_space * alpha / 8; // assume 8 bytes per entry for adaPerfectCF
         uint64_t max_space = total_space * alpha;
-        fp_cache = new cuckoofilter::AdaPerfectCF<uint64_t>(max_space);
-        // std::cerr << "FP Cache size: " << cache_entries << " entries" << std::endl;
+        fp_cache = new cuckoofilter::AdaPerfectCF<uint64_t, 64, 1>(max_space);
+        std::cerr << "FP Cache size: " << fp_cache->MaxSize() << " entries" << std::endl;
     }
     
     ~QF_Enhanced() {

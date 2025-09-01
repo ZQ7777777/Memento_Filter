@@ -239,8 +239,8 @@ Status Contain64(const ItemType &key) const {
   GenerateIndexTagHash64(key, &i1, &tag);
   i2 = AltIndex(i1, tag);
   found = victim_.used && ( (tag == victim_.tag && i1 == victim_.index) || 
-  ((tag ^ (1ULL << (bits_per_item-1))) == victim_.tag && i2 == victim_.index) );
-  if (found || this->table_->FindTagInBuckets_PCF(i1, i2, tag)) {
+  ((tag ^ (1ULL << (bits_per_item-1-cntSize))) == victim_.tag && i2 == victim_.index) );
+  if (found || this->table_->FindTagInBuckets_ADPPCF(i1, i2, tag, cntSize)) {
     return Ok;
   } else {
     return NotFound;

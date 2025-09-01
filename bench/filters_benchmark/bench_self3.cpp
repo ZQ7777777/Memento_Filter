@@ -141,7 +141,7 @@ inline QF_Enhanced *init_self3(const t_itr begin, const t_itr end, const double 
     const uint64_t max_range_size = *std::max_element(query_lengths.begin(), query_lengths.end());
     const double load_factor = 0.95;
 
-    const double alpha = 0.01;  // 10% for FP cache
+    const double alpha = 0.05;  // 10% for FP cache
 
     const double effective_bpk = bpk * (1.0 - alpha);
 
