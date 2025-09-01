@@ -29,7 +29,7 @@ struct FPCacheLRUFreq {
         CacheEntry(uint64_t k, uint32_t f, uint32_t t) 
             : key(k), frequency(f), last_access_time(t) {
             // 优先级得分：频率权重 0.7，时间权重 0.3
-            priority_score = 0.7 * frequency + 0.3 * (1.0 / (t + 1));
+            priority_score = 1.0 * frequency + 0 * (1.0 / (t + 1));
         }
         
         bool operator<(const CacheEntry& other) const {

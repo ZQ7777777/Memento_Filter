@@ -238,7 +238,7 @@ inline void check_iteration_validity(QF *qf, bool mode)
 }
 
 template <typename t_itr, typename... Args>
-inline QF_Enhanced *init_self2(const t_itr begin, const t_itr end, const double bpk, Args... args)
+inline QF_Enhanced *init_self3(const t_itr begin, const t_itr end, const double bpk, Args... args)
 {
     auto&& t = std::forward_as_tuple(args...);
     auto queries_temp = std::get<0>(t);
@@ -312,7 +312,7 @@ inline QF_Enhanced *init_self2(const t_itr begin, const t_itr end, const double 
 }
 
 template <typename value_type>
-inline bool query_self2(QF_Enhanced *f, const value_type left, const value_type right)
+inline bool query_self3(QF_Enhanced *f, const value_type left, const value_type right)
 {
     value_type l_key = left >> f->qf->metadata->memento_bits;
     value_type l_memento = left & ((1ULL << f->qf->metadata->memento_bits) - 1);
@@ -328,7 +328,7 @@ inline bool query_self2(QF_Enhanced *f, const value_type left, const value_type 
     return qf_range_query(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK);
 }
 
-inline size_t size_self2(QF_Enhanced *f)
+inline size_t size_self3(QF_Enhanced *f)
 {
     return qf_get_total_size_in_bytes(f->qf) + f->fp_cache->max_size * 2; // bytes, main size + FP cache size
 }
@@ -429,8 +429,8 @@ int main(int argc, char const *argv[])
 
     auto [ keys, queries, arg, memento_size ] = read_parser_arguments_memento(parser);
 
-    experiment_with_fp_learning(pass_fun(init_self2), pass_ref(query_self2), 
-                pass_ref(size_self2), arg, keys, queries, queries, memento_size);
+    experiment_with_fp_learning(pass_fun(init_self3), pass_ref(query_self3), 
+                pass_ref(size_self3), arg, keys, queries, queries, memento_size);
 
     print_test();
 
