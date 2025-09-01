@@ -149,6 +149,7 @@ struct QF_Enhanced {
     QF_Enhanced(QF *filter, double a) : qf(filter), alpha(a) {
         // Calculate cache size based on alpha
         uint64_t total_space = qf_get_total_size_in_bytes(filter);
+        alpha *= 10;
         uint64_t cache_entries = total_space * alpha / 16; // each entry has 2 64bits
         fp_cache = new FPCacheLRUFreq(cache_entries);
         std::cerr << "FP Cache size: " << cache_entries << " entries" << std::endl;
