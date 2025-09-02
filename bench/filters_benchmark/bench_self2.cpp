@@ -25,14 +25,13 @@ struct QF_Enhanced {
     cuckoofilter::AdaPerfectCF<uint64_t, 64, 2> *fp_cache;
     double alpha;  // fraction of space for FP cache
     
-    QF_Enhanced(QF *filter, double a, uint64_t n_items, double target_bpk) : qf(filter), alpha(a) {
-        // Calculate cache size based on alpha and target space allocation
-        // FP cache gets alpha fraction of the total target space
-        uint64_t target_total_space = (uint64_t)((target_bpk * n_items) / 8.0); // Convert bits to bytes
-        uint64_t fp_cache_space = (uint64_t)(target_total_space * alpha);
-        fp_cache = new cuckoofilter::AdaPerfectCF<uint64_t, 64, 2>(fp_cache_space);
-        std::cerr << "Target total space: " << target_total_space << " bytes" << std::endl;
-        std::cerr << "FP Cache allocated space: " << fp_cache_space << " bytes" << std::endl;
+    QF_Enhanced(QF *filter, double a) : qf(filter), alpha(a) {
+        // Calculate cache size based on alpha
+        uint64_t total_space = qf_get_total_size_in_bytes(filter);
+        // alpha *= 10;
+        // uint64_t cache_entries = total_space * alpha / 8; // assume 8 bytes per entry for adaPerfectCF
+        uint64_t max_space = total_space * alpha;
+        fp_cache = new cuckoofilter::AdaPerfectCF<uint64_t, 64, 2>(max_space);
         std::cerr << "FP Cache size: " << fp_cache->MaxSize() << " entries" << std::endl;
     }
     
@@ -143,10 +142,10 @@ inline QF_Enhanced *init_self2(const t_itr begin, const t_itr end, const double 
     const uint64_t max_range_size = *std::max_element(query_lengths.begin(), query_lengths.end());
     const double load_factor = 0.95;
 
-    const double alpha = 0.015;  // fraction of space for FP cache
+    const double alpha = 0.015;  // 10% for FP cache
 
-    // Keep fingerprint_size calculation based on original bpk, not reduced
-    // This ensures fingerprint quality doesn't degrade with larger alpha
+    const double effective_bpk = bpk * (1.0 - alpha);
+
     const uint64_t n_slots = n_items / load_factor + std::sqrt(n_items);
     int predef_memento_size = std::get<1>(t);
     uint32_t memento_bits = 1;
@@ -157,7 +156,7 @@ inline QF_Enhanced *init_self2(const t_itr begin, const t_itr end, const double 
     }
     else 
         memento_bits = predef_memento_size;
-    const uint32_t fingerprint_size = round(bpk * load_factor - memento_bits - 2.125);
+    const uint32_t fingerprint_size = round(effective_bpk * load_factor - memento_bits - 2.125);
     uint32_t key_size = 0;
     while ((1ULL << key_size) <= n_slots)
         key_size++;
@@ -197,7 +196,7 @@ inline QF_Enhanced *init_self2(const t_itr begin, const t_itr end, const double 
     check_iteration_validity(qf, false);
 
     // Create enhanced structure with FP cache
-    QF_Enhanced *enhanced = new QF_Enhanced(qf, alpha, n_items, bpk);
+    QF_Enhanced *enhanced = new QF_Enhanced(qf, alpha);
     return enhanced;
 }
 
