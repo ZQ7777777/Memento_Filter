@@ -445,8 +445,8 @@ generate_real_queries(std::vector<uint64_t> &data, uint64_t n_queries, std::vect
 
     // 生成查询时也需要考虑重复使用候选
     for (size_t query_idx = 0; query_idx < n_queries; ++query_idx) {
-        size_t candidate_idx = query_idx % candidates.size();
-        auto candidate_point = candidates[candidate_idx].first;
+        size_t candidate_idx = query_idx % indexesSize;
+        auto candidate_point = data[indexes[candidate_idx]];
         
         for (auto i = 0; i < range_list.size(); i++)
         {
