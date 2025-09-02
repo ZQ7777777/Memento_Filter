@@ -14,25 +14,142 @@
 #include "../bench_template.hpp"
 #include "memento.h"
 #include "memento_int.h"
-#include "adaPerfectCF.h"
 
 #include <unordered_set>
 #include <queue>
 
-// Enhanced QF structure with FP cache using adaPerfectCF
+// 混合 LRU 和频率的优先级 Cache
+struct FPCacheLRUFreq {
+    struct CacheEntry {
+        uint64_t key;
+        uint32_t frequency;
+        uint32_t last_access_time;
+        double priority_score;
+
+        CacheEntry(uint64_t key, uint32_t f, uint32_t t) : key(key), frequency(f), last_access_time(t) {
+            // 优先级得分：频率权重 0.7，时间权重 0.3
+            priority_score = 0.7 * frequency + 0.3 * last_access_time;
+        }
+
+        // void update(uint32_t f, uint32_t t) {
+        //     frequency = f;
+        //     last_access_time = t;
+        //     priority_score = 1.0 * frequency + 0 * last_access_time;
+        // }
+
+    
+        
+        bool operator<(const CacheEntry& other) const {
+            return priority_score < other.priority_score;  // 得分低的先被淘汰
+        }
+    };
+    
+    std::multiset<CacheEntry> pq;
+    // std::map<uint64_t, std::pair<uint32_t, uint32_t>> key_info; // key -> (frequency, last_time)
+    std::map<uint64_t, std::multiset<CacheEntry>::iterator> pq_iterators; // key -> iterator in pq
+    uint64_t max_size;
+    uint32_t current_time;
+    uint64_t cur_range_fp_size;
+
+    FPCacheLRUFreq(uint64_t size) : max_size(size), current_time(0) {}
+    // 优化后的范围查询 - O(log n + k)，k 是结果数量
+    uint64_t* get_keys_in_range(uint64_t left, uint64_t right) {
+        auto it_start = pq_iterators.lower_bound(left);   // 找到第一个 >= left 的元素
+        auto it_end = pq_iterators.upper_bound(right);    // 找到第一个 > right 的元素
+        uint64_t* keys = new uint64_t[std::distance(it_start, it_end)];
+        for (auto it = it_start; it != it_end; ++it) {
+            keys[std::distance(it_start, it)] = it->first;
+        }
+        cur_range_fp_size = std::distance(it_start, it_end);
+        return keys;
+    }
+    // 检查 FP Cache 是否包含指定的 FP
+    // 后续根据potential_fp_keys的有序性考虑优化
+    bool contain_all_keys(uint64_t *fp_keys, uint64_t *fp_keys_size, 
+         uint64_t *potential_fp_keys, uint64_t *potential_fp_keys_size) {
+        bool all_found = true;
+        for (uint64_t i = 0; i < *fp_keys_size; ++i) {
+            if (!pq_iterators.count(fp_keys[i])) {
+                all_found = false;
+                potential_fp_keys[*potential_fp_keys_size] = fp_keys[i];
+                (*potential_fp_keys_size)++;
+            }
+        }
+        return all_found;
+    }
+
+
+    bool contains(uint64_t key) {
+        current_time++;
+        auto it = pq_iterators.find(key);
+        if (it != pq_iterators.end()) {
+            // 获取当前频率并增加1
+            uint32_t new_frequency = it->second->frequency + 1;
+            // 先删除旧元素
+            pq.erase(it->second);
+            // 插入更新后的元素
+            auto new_it = pq.insert(CacheEntry(key, new_frequency, current_time));
+            pq_iterators[key] = new_it;
+            
+            return true;
+        }
+        return false;
+    }
+    
+    int insert(uint64_t key) {
+        // 检查是否需要淘汰
+        if (pq_iterators.size() >= max_size) {
+            evict_lowest_priority();
+            auto new_it = pq.insert(CacheEntry(key, 1, current_time));
+            pq_iterators[key] = new_it;
+            return 0; // 表示发生了淘汰
+        }
+        
+        // 插入新元素
+        auto new_it = pq.insert(CacheEntry(key, 1, current_time));
+        pq_iterators[key] = new_it;
+        return 1; // 表示成功插入
+    }
+    
+private:
+    void evict_lowest_priority() {
+        if (!pq.empty()) {
+            auto entry = *pq.begin();  // 最小优先级的条目
+            auto key = entry.key;
+            
+            // 从数据结构中移除
+            pq.erase(pq.begin());
+
+            pq_iterators.erase(key);
+        }
+    }
+    
+public:
+    size_t size() const { return pq_iterators.size();} 
+    void clear() {
+        pq.clear();
+        // key_info.clear();
+        pq_iterators.clear();
+        current_time = 0;
+    }
+    ~FPCacheLRUFreq() {
+        clear();
+    }
+};
+
+// Enhanced QF structure with FP cache
 struct QF_Enhanced {
     QF *qf;
-    cuckoofilter::AdaPerfectCF<uint64_t, 64, 2> *fp_cache;
+    FPCacheLRUFreq *fp_cache;
     double alpha;  // fraction of space for FP cache
     
     QF_Enhanced(QF *filter, double a) : qf(filter), alpha(a) {
         // Calculate cache size based on alpha
         uint64_t total_space = qf_get_total_size_in_bytes(filter);
-        // alpha *= 10;
-        // uint64_t cache_entries = total_space * alpha / 8; // assume 8 bytes per entry for adaPerfectCF
-        uint64_t max_space = total_space * alpha;
-        fp_cache = new cuckoofilter::AdaPerfectCF<uint64_t, 64, 2>(max_space);
-        std::cerr << "FP Cache size: " << fp_cache->MaxSize() << " entries" << std::endl;
+        alpha *= 10;
+        uint64_t cache_entries = total_space * alpha / 16; // each entry has 2 64bits
+        fp_cache = new FPCacheLRUFreq(cache_entries);
+        std::cerr << "FP Cache size: " << cache_entries << " entries" << std::endl;
     }
     
     ~QF_Enhanced() {
@@ -127,7 +244,7 @@ inline void check_iteration_validity(QF *qf, bool mode)
 }
 
 template <typename t_itr, typename... Args>
-inline QF_Enhanced *init_self2(const t_itr begin, const t_itr end, const double bpk, Args... args)
+inline QF_Enhanced *init_self4(const t_itr begin, const t_itr end, const double bpk, Args... args)
 {
     auto&& t = std::forward_as_tuple(args...);
     auto queries_temp = std::get<0>(t);
@@ -142,8 +259,7 @@ inline QF_Enhanced *init_self2(const t_itr begin, const t_itr end, const double 
     const uint64_t max_range_size = *std::max_element(query_lengths.begin(), query_lengths.end());
     const double load_factor = 0.95;
 
-    const double alpha = 0.02;  // 10% for FP cache
-
+    const double alpha = 0.01;  // 10% for FP cache
     const double effective_bpk = bpk * (1.0 - alpha);
 
     const uint64_t n_slots = n_items / load_factor + std::sqrt(n_items);
@@ -195,19 +311,20 @@ inline QF_Enhanced *init_self2(const t_itr begin, const t_itr end, const double 
 
     check_iteration_validity(qf, false);
 
-    // Create enhanced structure with FP cache
+        // Create enhanced structure with FP cache
     QF_Enhanced *enhanced = new QF_Enhanced(qf, alpha);
+
     return enhanced;
 }
 
 template <typename value_type>
-inline bool query_self2(QF_Enhanced *f, const value_type left, const value_type right)
+inline bool query_self4(QF_Enhanced *f, const value_type left, const value_type right)
 {
     value_type l_key = left >> f->qf->metadata->memento_bits;
     value_type l_memento = left & ((1ULL << f->qf->metadata->memento_bits) - 1);
     if (left == right) {
-        // Check FP cache first using AdaPerfectCF
-        if (f->fp_cache->Contain64(left) == cuckoofilter::Ok) {
+        // Check FP cache first
+        if (f->fp_cache->contains(left)) {
             return false;
         }
         return qf_point_query(f->qf, l_key, l_memento, QF_NO_LOCK);
@@ -217,9 +334,9 @@ inline bool query_self2(QF_Enhanced *f, const value_type left, const value_type 
     return qf_range_query(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK);
 }
 
-inline size_t size_self2(QF_Enhanced *f)
+inline size_t size_self4(QF_Enhanced *f)
 {
-    return qf_get_total_size_in_bytes(f->qf) + f->fp_cache->SizeInBytes();
+    return qf_get_total_size_in_bytes(f->qf) + f->fp_cache->max_size * 16; // bytes, main size + FP cache size
 }
 
 template <typename InitFun, typename RangeFun, typename SizeFun, typename key_type, typename... Args>
@@ -229,7 +346,8 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
 
     std::cout << "[+] data structure constructed in " << test_out["build_time"] << "ms, starting queries" << std::endl;
     auto fp = 0, fn = 0;
-    // auto evictCnt = 0;
+    auto evictCnt = 0;
+
     start_timer(query_time);
     for (auto q : queries)
     {
@@ -241,14 +359,14 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
         // bool query_result = range_f(f, left, right);
         bool query_result;
         if (left == right) {
-            if (qf_point_query(f->qf, l_key, l_memento, QF_NO_LOCK) && f->fp_cache->Contain64(left) != cuckoofilter::Ok) 
+            if (qf_point_query(f->qf, l_key, l_memento, QF_NO_LOCK) && ! f->fp_cache->contains(left)) 
                 query_result = true;
              else 
                 query_result = false;
             if (query_result && !original_result) 
             {
                 fp++;
-                f->fp_cache->Add64(left);
+                f->fp_cache->insert(left);
             }
             else if (!query_result && original_result)
             {
@@ -256,26 +374,30 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
                 fn++;
             }
         } else {
+            // uint64_t fp_key = 0;
+            // uint64_t* fp_keys;
             uint64_t* fp_keys = new uint64_t[right - left + 1];
             uint64_t fp_keys_size = 0;
+            // query_result = qf_range_query_fp_learning2(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK, &fp_key, fps, fps_size);
             query_result = qf_range_query_fp_learning3(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK, fp_keys, &fp_keys_size);
             if (query_result) {
-                // Check each FP key individually with AdaPerfectCF
-                bool all_in_cache = true;
-                for (uint64_t i = 0; i < fp_keys_size; ++i) {
-                    if (f->fp_cache->Contain64(fp_keys[i]) != cuckoofilter::Ok) {
-                        all_in_cache = false;
-                        if (!original_result) {
-                            f->fp_cache->Add64(fp_keys[i]);
-                        }
-                    }
-                }
-                if (all_in_cache) {
-                    query_result = false; // All FPs are in cache, return false
+                uint64_t *potential_fp_keys = new uint64_t[right - left + 1];
+                uint64_t potential_fp_keys_size = 0;
+                if (f->fp_cache->contain_all_keys(fp_keys, &fp_keys_size, potential_fp_keys, &potential_fp_keys_size)) {
+                    query_result = false; // 如果 FP Cache 包含所有 FP，则认为查询结果为 false]
                 } 
                 if (query_result && !original_result) {
                     fp++;
+                    // assert(potential_fp_keys[i] >= left && potential_fp_keys[i] <= right);
+                    for (uint64_t i = 0; i < potential_fp_keys_size; ++i) {
+                        int result = f->fp_cache->insert(potential_fp_keys[i]);
+                        if (result == 0) {
+                            // 发生了淘汰
+                            evictCnt++;
+                        }
+                    }
                 }
+                delete[] potential_fp_keys;
             }
             else if (!query_result && original_result)
             {
@@ -283,6 +405,7 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
                 fn++;
             }
             delete[] fp_keys;
+
         }
     }
     stop_timer(query_time);
@@ -295,9 +418,9 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
     test_out.add_measure("n_keys", keys.size());
     test_out.add_measure("n_queries", queries.size());
     test_out.add_measure("false_positives", fp);
-    test_out.add_measure("fpCacheSize", f->fp_cache->Size());
-    test_out.add_measure("fpCacheMaxSize", f->fp_cache->MaxSize());
-    // test_out.add_measure("evictCount", evictCnt);
+    test_out.add_measure("fpCacheSize", f->fp_cache->size());
+    test_out.add_measure("fpCacheMaxSize", f->fp_cache->max_size);
+    test_out.add_measure("evictCount", evictCnt);
     std::cout << "[+] test executed successfully, printing stats and closing." << std::endl;
 }
 
@@ -318,8 +441,8 @@ int main(int argc, char const *argv[])
 
     auto [ keys, queries, arg, memento_size ] = read_parser_arguments_memento(parser);
 
-    experiment_with_fp_learning(pass_fun(init_self2), pass_ref(query_self2), 
-                pass_ref(size_self2), arg, keys, queries, queries, memento_size);
+    experiment_with_fp_learning(pass_fun(init_self4), pass_ref(query_self4), 
+                pass_ref(size_self4), arg, keys, queries, queries, memento_size);
 
     print_test();
 

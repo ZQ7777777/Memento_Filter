@@ -22,16 +22,16 @@
 // Enhanced QF structure with FP cache using adaPerfectCF
 struct QF_Enhanced {
     QF *qf;
-    cuckoofilter::AdaPerfectCF<uint64_t, 64, 1> *fp_cache;
+    cuckoofilter::AdaPerfectCF<uint64_t, 64, 2> *fp_cache;
     double alpha;  // fraction of space for FP cache
     
     QF_Enhanced(QF *filter, double a) : qf(filter), alpha(a) {
         // Calculate cache size based on alpha
         uint64_t total_space = qf_get_total_size_in_bytes(filter);
-        alpha *= 10;
+        // alpha *= 10;
         // uint64_t cache_entries = total_space * alpha / 8; // assume 8 bytes per entry for adaPerfectCF
         uint64_t max_space = total_space * alpha;
-        fp_cache = new cuckoofilter::AdaPerfectCF<uint64_t, 64, 1>(max_space);
+        fp_cache = new cuckoofilter::AdaPerfectCF<uint64_t, 64, 2>(max_space);
         std::cerr << "FP Cache size: " << fp_cache->MaxSize() << " entries" << std::endl;
     }
     
@@ -142,7 +142,7 @@ inline QF_Enhanced *init_self1(const t_itr begin, const t_itr end, const double 
     const uint64_t max_range_size = *std::max_element(query_lengths.begin(), query_lengths.end());
     const double load_factor = 0.95;
 
-    const double alpha = 0.01;  // 10% for FP cache
+    const double alpha = 0.015;  // 10% for FP cache
 
     const double effective_bpk = bpk * (1.0 - alpha);
 
