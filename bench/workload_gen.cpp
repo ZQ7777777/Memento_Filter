@@ -420,6 +420,7 @@ generate_real_queries(std::vector<uint64_t> &data, uint64_t n_queries, std::vect
     // auto indexes = std::vector<int>(n_queries);
     // std::transform(candidates.begin(), candidates.begin() + n_queries, indexes.begin(),
     //                [](const std::pair<uint64_t, int> &p) { return p.second; });
+    indexesSize = std::min(indexesSize, static_cast<size_t>(data.size() / 20));
     auto indexes = std::vector<int>(indexesSize);
     std::transform(candidates.begin(), candidates.begin() + indexesSize, indexes.begin(),
                    [](const std::pair<uint64_t, int> &p) { return p.second; });
