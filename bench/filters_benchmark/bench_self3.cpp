@@ -156,7 +156,7 @@ inline QF_Enhanced *init_self3(const t_itr begin, const t_itr end, const double 
     }
     else 
         memento_bits = predef_memento_size;
-    const uint32_t fingerprint_size = round(effective_bpk * load_factor - memento_bits - 2.125);
+    const uint32_t fingerprint_size = round(bpk * load_factor - memento_bits - 2.125);
     uint32_t key_size = 0;
     while ((1ULL << key_size) <= n_slots)
         key_size++;
