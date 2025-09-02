@@ -44,10 +44,10 @@ RANGE_FILTERS_STYLE_KWARGS = {"memento": {"marker": '4', "color": "fuchsia", "zo
                               "rosetta": {"marker": 'd', "color": "C4", "label": "Rosetta"},
                               "rencoder": {"marker": '>', "color": "C5", "label": "REncoder"},
                               "rsqf": {"marker": '3', "color": "black", "label": "RSQF"},
-                              "self1": {"marker": 'P', "color": "darkred", "zorder": 12, "label": "PCF_CNT3(ALPHA=0.01)"},
-                              "self2": {"marker": 'p', "color": "dimgray", "zorder": 12, "label": "PCF_CNT3(ALPHA=0.015)"},
-                              "self3": {"marker": 'o', "color": "tan", "zorder": 12, "label": "PCF_CNT3(ALPHA=0.02)"},
-                              "self4": {"marker": 'D', "color": "C5", "zorder": 12, "label": "PCF_CNT3(ALPHA=0.03)"},
+                              "self1": {"marker": 'P', "color": "darkred", "zorder": 12, "label": "PCF_CNT4(ALPHA=0.01)"},
+                              "self2": {"marker": 'p', "color": "dimgray", "zorder": 12, "label": "PCF_CNT4(ALPHA=0.015)"},
+                              "self3": {"marker": 'o', "color": "tan", "zorder": 12, "label": "PCF_CNT4(ALPHA=0.02)"},
+                              "self4": {"marker": 'D', "color": "C5", "zorder": 12, "label": "PCF_CNT4(ALPHA=0.03)"},
                               }  # 新增
 BTREE_RANGE_FILTERS_STYLE_KWARGS = {"memento": {"marker": '4', "color": "fuchsia", "zorder": 11, "label": "Memento"},
                                      "none": {"marker": 'x', "color": "dimgray", "zorder": 10, "label": "Baseline"}}
