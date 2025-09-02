@@ -142,7 +142,7 @@ inline QF_Enhanced *init_self2(const t_itr begin, const t_itr end, const double 
     const uint64_t max_range_size = *std::max_element(query_lengths.begin(), query_lengths.end());
     const double load_factor = 0.95;
 
-    const double alpha = 0.03;  // 10% for FP cache
+    const double alpha = 0.015;  // 10% for FP cache
 
     const double effective_bpk = bpk * (1.0 - alpha);
 
@@ -156,7 +156,7 @@ inline QF_Enhanced *init_self2(const t_itr begin, const t_itr end, const double 
     }
     else 
         memento_bits = predef_memento_size;
-    const uint32_t fingerprint_size = round(effective_bpk * load_factor - memento_bits - 2.125);
+    const uint32_t fingerprint_size = round(bpk * load_factor - memento_bits - 2.125);
     uint32_t key_size = 0;
     while ((1ULL << key_size) <= n_slots)
         key_size++;
