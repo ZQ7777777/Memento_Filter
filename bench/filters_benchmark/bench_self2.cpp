@@ -143,7 +143,7 @@ inline QF_Enhanced *init_self2(const t_itr begin, const t_itr end, const double 
     const uint64_t max_range_size = *std::max_element(query_lengths.begin(), query_lengths.end());
     const double load_factor = 0.95;
 
-    const double alpha = 0.02;  // fraction of space for FP cache
+    const double alpha = 0.015;  // fraction of space for FP cache
 
     // Keep fingerprint_size calculation based on original bpk, not reduced
     // This ensures fingerprint quality doesn't degrade with larger alpha
