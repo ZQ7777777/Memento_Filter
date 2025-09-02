@@ -7,7 +7,7 @@
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful,
+ * This program is distrpe that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
@@ -406,23 +406,28 @@ generate_real_queries(std::vector<uint64_t> &data, uint64_t n_queries, std::vect
     if (std::numeric_limits<uint64_t>::max() - data.back() > max_range_size)
         candidates.emplace_back(data.back(), data.size() - 1);
 
-    if (candidates.size() < n_queries)
-        throw std::runtime_error(
-                "error, can build at most " + std::to_string(candidates.size()) + " over " + std::to_string(n_queries) +
-                " queries");
+    // if (candidates.size() < n_queries)
+    //     throw std::runtime_error(
+    //             "error, can build at most " + std::to_string(candidates.size()) + " over " + std::to_string(n_queries) +
+    //             " queries");
 
     std::cout << "[+] found " << candidates.size() << " candidates.";
 
     std::mt19937 gen_shuffle(seed);
     std::shuffle(candidates.begin(), candidates.end(), gen_shuffle);
 
-    auto indexes = std::vector<int>(n_queries);
-    std::transform(candidates.begin(), candidates.begin() + n_queries, indexes.begin(),
+    auto indexesSize = (n_queries < candidates.size()) ? n_queries : candidates.size();
+    // auto indexes = std::vector<int>(n_queries);
+    // std::transform(candidates.begin(), candidates.begin() + n_queries, indexes.begin(),
+    //                [](const std::pair<uint64_t, int> &p) { return p.second; });
+    auto indexes = std::vector<int>(indexesSize);
+    std::transform(candidates.begin(), candidates.begin() + indexesSize, indexes.begin(),
                    [](const std::pair<uint64_t, int> &p) { return p.second; });
     std::sort(indexes.begin(), indexes.end());
 
     std::vector<uint64_t> keys;
-    keys.reserve(data.size() - n_queries);
+    // keys.reserve(data.size() - n_queries);
+    keys.reserve(data.size() - indexesSize);
     auto it = indexes.begin();
     for (auto i = 0; i < data.size(); i++) {
         if (i != *it)
@@ -437,10 +442,14 @@ generate_real_queries(std::vector<uint64_t> &data, uint64_t n_queries, std::vect
     std::mt19937 gen_range(seed);
     std::uniform_int_distribution<uint64_t> range_distr(1, range_list.back());
 
-    for (auto it = candidates.begin(); it < candidates.begin() + n_queries; ++it) {
+    // 生成查询时也需要考虑重复使用候选
+    for (size_t query_idx = 0; query_idx < n_queries; ++query_idx) {
+        size_t candidate_idx = query_idx % candidates.size();
+        auto candidate_point = candidates[candidate_idx].first;
+        
         for (auto i = 0; i < range_list.size(); i++)
         {
-            auto range_q = point_to_range(it->first, range_list[i]);
+            auto range_q = point_to_range(candidate_point, range_list[i]);
             if (range_q.first > range_q.second)
                 throw std::runtime_error("unexpected error, queries are not sorted");
             queries_list[i].emplace_back(range_q.first, range_q.second, false);
@@ -449,11 +458,13 @@ generate_real_queries(std::vector<uint64_t> &data, uint64_t n_queries, std::vect
         if (mixed_queries)
         {
             auto range_size = static_cast<uint64_t>(range_distr(gen_range));
-            auto range_q = point_to_range(it->first, range_size);
+            auto range_q = point_to_range(candidate_point, range_size);
             queries_list[range_list.size()].emplace_back(range_q.first, range_q.second, false);
         }
     }
-
+    //shuffle queries_list
+    std::mt19937 shuffle_gen(seed);
+    std::shuffle(queries_list.begin(), queries_list.end(), shuffle_gen);
     return std::make_pair(keys, queries_list);
 }
 
