@@ -472,16 +472,16 @@ def plot_qs():
     CORR_DEGREE = 8  # 固定使用 correlation degree = 1.0
     
     RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4", "rsqf"]    
-    corr_test_qs_base_path = f"{base_csv_path}/corr_test/qs"
+    qs_base_path = f"{base_csv_path}/qs"
     
     # 检查基础目录是否存在
-    if not os.path.exists(corr_test_qs_base_path):
-        raise FileNotFoundError(f"Base directory not found: {corr_test_qs_base_path}")
-    sorted_dirs = sorted(os.listdir(corr_test_qs_base_path), reverse=True)
+    if not os.path.exists(qs_base_path):
+        raise FileNotFoundError(f"Base directory not found: {qs_base_path}")
+    sorted_dirs = sorted(os.listdir(qs_base_path), reverse=True)
     if len(sorted_dirs) < 1:
         raise FileNotFoundError("error, cannot find the latest test executed")
-    corr_test_qs_base_path = Path(corr_test_qs_base_path + '/' + sorted_dirs[0])
-    print(corr_test_qs_base_path)
+    qs_base_path = Path(qs_base_path + '/' + sorted_dirs[0])
+    print(qs_base_path)
     
     fig, axes = plt.subplots(2, 3, sharex=True, sharey='row', figsize=(WIDTH, HEIGHT))
     values = [collections.defaultdict(list) for _ in range(len(QUERY_RANGE))]
@@ -492,7 +492,7 @@ def plot_qs():
         if ds == "rsqf" and r[0] > 0:
             continue
             
-        qs_dir = f"{corr_test_qs_base_path}/{qs}"
+        qs_dir = f"{qs_base_path}/{qs}"
         if not os.path.exists(qs_dir):
             print(f"Warning: Directory not found: {qs_dir}")
             # 添加 NaN 值以保持数据对齐
