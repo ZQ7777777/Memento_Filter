@@ -243,8 +243,8 @@ def generate_tables(fpr_test_path, fpr_real_test_path, filters, workloads):
 
 def plot_fpr():
     WORKLOADS = [("kuniform", "qcorrelated"), ("kuniform", "quniform"), ("books"), ("osm")]
-    # RANGE_FILTERS = ["memento", "grafite", "surf", "proteus", "snarf", "oasis", "rencoder", "rosetta", "self1", "self2", "self3", "self4"]
-    RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4"]  # 新增
+    RANGE_FILTERS = ["memento", "grafite", "surf", "proteus", "snarf", "oasis", "rencoder", "rosetta", "self1", "self2", "self3", "self4"]
+    # RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4"]  # 新增
 
     fpr_test_path = f"{base_csv_path}/fpr_test"
     sorted_dirs = sorted(os.listdir(fpr_test_path), reverse=True)
@@ -385,8 +385,8 @@ def plot_correlated():
     CORR_DEGREES = range(0, 11)
     XLABELS = [x / 10 for x in CORR_DEGREES]
     
-    # RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "rsqf", "self1", "self2", "self3", "self4"]
-    RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4", "rsqf"]    
+    RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "rsqf", "self1", "self2", "self3", "self4"]
+    # RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4", "rsqf"]    
     corr_test_path = f"{base_csv_path}/corr_test"
     sorted_dirs = sorted(os.listdir(corr_test_path), reverse=True)
     if len(sorted_dirs) < 1:
@@ -470,8 +470,8 @@ def plot_qs():
     QS_VALUES = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
     XLABELS = QS_VALUES
     CORR_DEGREE = 8  # 固定使用 correlation degree = 1.0
-    
-    RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4", "rsqf"]    
+    RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "rsqf", "self1", "self2", "self3", "self4"]
+    # RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4", "rsqf"]    
     qs_base_path = f"{base_csv_path}/qs"
     
     # 检查基础目录是否存在
