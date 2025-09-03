@@ -59,6 +59,7 @@ restore_corr_test() {
 # Function to run experiment for a specific dataset
 run_experiment() {
     local dataset_suffix=$1
+    local qs_results_dir=$2
     local source_dataset="corr_test_tiny_qs_$dataset_suffix"
     local target_dataset="corr_test"
     
@@ -90,7 +91,7 @@ run_experiment() {
     
     # Run the experiment
     print_status "Running correlation experiment for $source_dataset..."
-    cd /home/zq/code2/paper_results
+    cd ../../paper_results
     
     # Execute the test
     if ! bash ../Memento_Filter/bench/scripts/execute_tests.sh ../Memento_Filter/build workloads -f correlated; then
@@ -102,10 +103,9 @@ run_experiment() {
     # Find the most recent results directory
     local latest_result=$(ls -t "$RESULTS_DIR"/corr_test/ | head -n 1)
     if [ -n "$latest_result" ]; then
-        local new_result_name="${latest_result%.*}_qs_$dataset_suffix.${latest_result##*.}"
-        print_status "Renaming results from $latest_result to $new_result_name"
-        mv "$RESULTS_DIR/corr_test/$latest_result" "$RESULTS_DIR/corr_test/$new_result_name"
-        print_success "Results saved as: $new_result_name"
+        print_status "Moving results from $latest_result to qs/$(basename "$qs_results_dir")/$dataset_suffix"
+        mv "$RESULTS_DIR/corr_test/$latest_result" "$qs_results_dir/$dataset_suffix"
+        print_success "Results saved as: qs/$(basename "$qs_results_dir")/$dataset_suffix"
     else
         print_warning "No results found for dataset $source_dataset"
     fi
@@ -123,11 +123,18 @@ main() {
     print_status "Processing ${#DATASETS[@]} datasets: ${DATASETS[*]}"
     echo "========================================"
     
+    # Create a single timestamp for all experiments
+    local timestamp=$(date +%Y-%m-%d.%H:%M:%S)
+    local qs_results_dir="$RESULTS_DIR/qs/$timestamp"
+    
     # Backup existing corr_test
     backup_corr_test
     
     # Create results directory if it doesn't exist
     mkdir -p "$RESULTS_DIR/corr_test"
+    mkdir -p "$qs_results_dir"
+    
+    print_status "All results will be stored under: qs/$timestamp/"
     
     # Track success and failure counts
     local success_count=0
@@ -136,7 +143,7 @@ main() {
     
     # Process each dataset
     for dataset_suffix in "${DATASETS[@]}"; do
-        if run_experiment "$dataset_suffix"; then
+        if run_experiment "$dataset_suffix" "$qs_results_dir"; then
             ((success_count++))
         else
             ((failure_count++))
@@ -158,8 +165,8 @@ main() {
         print_success "All experiments completed successfully!"
     fi
     
-    print_status "Results are stored in: $RESULTS_DIR/corr_test/"
-    print_status "Each result folder is suffixed with the corresponding query scale (qs_X)"
+    print_status "Results are stored in: $RESULTS_DIR/qs/$timestamp/"
+    print_status "Each dataset result is stored as: $timestamp/{dataset_suffix}"
 }
 
 # Check prerequisites
@@ -215,8 +222,8 @@ OPTIONS:
 EXAMPLES:
     $0                    # Run all datasets
     
-Results will be stored in: $RESULTS_DIR/corr_test/
-Each result folder will be suffixed with the query scale (e.g., *_qs_10)
+Results will be stored in: $RESULTS_DIR/qs/
+Each result folder will be stored as: qs/{timestamp}/{dataset_suffix}
 
 EOF
 }

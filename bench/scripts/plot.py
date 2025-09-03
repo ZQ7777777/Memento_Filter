@@ -110,76 +110,38 @@ def print_fpr_test(fpr_test_path, fpr_real_test_path, filters, workloads, name):
             row = workloads.index(x)
             (idx, ran) = r
             if type(x) is tuple:
-                if ds == "rencoder":
-                    data = pd.read_csv(get_file("rosetta", r[1], x[0], x[1], path=fpr_test_path))
-                else:
-                    data = pd.read_csv(get_file(ds, r[1], x[0], x[1], path=fpr_test_path))
+                data = pd.read_csv(get_file(ds, r[1], x[0], x[1], path=fpr_test_path))
             else:
-                if ds == "rencoder":
-                    data = pd.read_csv(get_file("rosetta", r[1], x, path=fpr_real_test_path))
-                else:
-                    data = pd.read_csv(get_file(ds, r[1], x, path=fpr_real_test_path))
+                data = pd.read_csv(get_file(ds, r[1], x, path=fpr_real_test_path))
             data["fpr_opt"] = data["false_positives"] / data["n_queries"]
-            # data["fpr_opt"] = data["fpr_opt"].replace(0, 1e-07)
-            # if data["fpr_opt"].min() <= 0:
-            #     print(data["fpr_opt"])
-            # swap 0 with 1e-06
-            data["fpr_opt"] = data["fpr_opt"].fillna(1e-06)
-            data["fpr_opt"] = data["fpr_opt"].apply(lambda x: 1e-06 if x <= 0 else x)
             data.plot("bpk", "fpr_opt", ax=axes[row][idx], **RANGE_FILTERS_STYLE_KWARGS[ds], **LINES_STYLE)
         except FileNotFoundError:
             pass
-    has_positive_axes = []
+ 
     for ax in axes.flatten():
-        # ax.set_yscale("symlog", linthresh=(1e-06))
-        has_positive = False
-        for line in ax.get_lines():
-            ydata = np.array(line.get_ydata())
-            if np.any(ydata > 0):
-                has_positive = True
-                break
-            else:
-                print(ydata)
-                print(np.any(ydata > 0))
-        if has_positive:
-            ax.set_yscale("symlog", linthresh=(1e-06))
-            has_positive_axes.append(ax)
-            # print(ydata)
-        else:
-            # print(ydata)
-            # print(np.any(ydata > 0))
-            print("Warning: This subplot has no positive y data, skip log scale.")
-
+        ax.set_yscale("symlog", linthresh=(1e-06))
         ax.set_xlim(right=MAX_X_AXIS_BPK)
         ax.set_yticks(YTICKS)
         ax.set_ylim(bottom=-0.0000003, top=1.9)
-        
         ax.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(2))
         ax.set_xlabel("Space [bits/key]", fontsize=XLABEL_FONT_SIZE)
-        # ax.get_legend().remove()
-        legend = ax.get_legend()
-        if legend is not None:
-            legend.remove()
+        ax.get_legend().remove()
         ax.autoscale_view()
         ax.margins(0.04)
-    # for ax in axes:
-    #     ax[0].yaxis.set_minor_locator(matplotlib.ticker.LogLocator(numticks=10, subs="auto"))
-    # 只对有正值的symlog/log轴设置LogLocator
-    for ax in has_positive_axes:
-        try:
-            ax.yaxis.set_minor_locator(matplotlib.ticker.LogLocator(numticks=10, subs="auto"))
-        except Exception as e:
-            print(f"Skip LogLocator for this subplot: {e}")
+ 
+    for ax in axes:
+        ax[0].yaxis.set_minor_locator(matplotlib.ticker.LogLocator(numticks=10, subs="auto"))
+ 
     for i, k in list(enumerate(workloads)):
         if type(k) is tuple:
             axis_title = f"{LABELS_NAME[k[1]]}"
         else:
             axis_title = f"{LABELS_NAME[k]}"
         axes[i][0].set_ylabel(axis_title + "\nFalse Positive Rate", fontsize=YLABEL_FONT_SIZE)
-
+ 
     for i in range(len(QUERY_RANGE)):
         axes[0][i].set_title(QUERY_RANGE_LABEL[i], fontsize=TITLE_FONT_SIZE)
-
+ 
     fig.subplots_adjust(wspace=0.1)
     lines, labels = axes[0][1].get_legend_handles_labels()
     if len(filters) > 4:
@@ -190,10 +152,7 @@ def print_fpr_test(fpr_test_path, fpr_real_test_path, filters, workloads, name):
         bbox = (0.5, 1.5)
     axes[0][1].legend(lines, labels, loc="upper center", bbox_to_anchor=bbox,
             fancybox=True, shadow=False, ncol=ncol, fontsize=LEGEND_FONT_SIZE)
-    # fig.show()
-    print(1)
     fig.savefig(f"{out_folder}/fpr_test_{name}_(Fig_9).pdf", bbox_inches="tight", pad_inches=0.01)
-    print(2)
 
 def generate_tables(fpr_test_path, fpr_real_test_path, filters, workloads):
     nrows = len(workloads)
@@ -219,65 +178,65 @@ def generate_tables(fpr_test_path, fpr_real_test_path, filters, workloads):
         workload_row[row][ds].append(round(data["single_query_time"].mean(), 2))
     mean_row = [collections.defaultdict(list) for _ in range(nrows)]
     print(5)
-    # for i in range(nrows):
-    #     for key, value in workload_row[i].items():
-    #         mean_row[i][key].append(round(np.mean(value)))
-    #     default_value = mean_row[i][filters[0]][0]
-    #     for key, value in mean_row[i].items():
-    #         mean_row[i][key].append(round(value[0] / max(default_value, 1), 2))
     for i in range(nrows):
         for key, value in workload_row[i].items():
-            if value:  # 确保 value 非空
-                mean_row[i][key].append(round(np.mean(value)))
-            else:
-                mean_row[i][key].append(0)
-        # 检查 filters[0] 是否存在且非空
-        if filters[0] in mean_row[i] and mean_row[i][filters[0]]:
-            default_value = mean_row[i][filters[0]][0]
-        else:
-            default_value = 1
+            mean_row[i][key].append(round(np.mean(value)))
+        default_value = mean_row[i][filters[0]][0]
         for key, value in mean_row[i].items():
-            if value:
-                mean_row[i][key].append(round(value[0] / max(default_value, 1), 2))
-            else:
-                mean_row[i][key].append(0)
+            mean_row[i][key].append(round(value[0] / max(default_value, 1), 2))
+    # for i in range(nrows):
+    #     for key, value in workload_row[i].items():
+    #         if value:  # 确保 value 非空
+    #             mean_row[i][key].append(round(np.mean(value)))
+    #         else:
+    #             mean_row[i][key].append(0)
+    #     # 检查 filters[0] 是否存在且非空
+    #     if filters[0] in mean_row[i] and mean_row[i][filters[0]]:
+    #         default_value = mean_row[i][filters[0]][0]
+    #     else:
+    #         default_value = 1
+    #     for key, value in mean_row[i].items():
+    #         if value:
+    #             mean_row[i][key].append(round(value[0] / max(default_value, 1), 2))
+    #         else:
+    #             mean_row[i][key].append(0)
     print(5)
     df_list = []
-    # for i in range(nrows): 
-    #     df = pd.DataFrame()
-    #     df["Competitor"] = mean_row[i].keys()
-    #     df["idx"] = df["Competitor"].copy()
-    #     df = df.set_index("idx")
-    #     for key, value in mean_row[i].items():
-    #         col_name = "Avg Query time (wrt " + filters[0] + ")"
-    #         df.at[key, "avg"] = value[0]
-    #         df.at[key, col_name] = str(value[0]) + " (" + str(value[1]) + "\\times)"
-        
-    #     # sort by 'temp' column ignoring the row of index 'Grafite'
-    #     df.iat[0, df.columns.get_loc("avg")] = -1
-    #     df = df.sort_values(by=["avg"])
-    #     # remove the 'temp' column
-    #     df = df.drop("avg", axis=1)
-    #     df_list.append(df)
     for i in range(nrows): 
         df = pd.DataFrame()
-        competitors = list(mean_row[i].keys())
-        df["Competitor"] = competitors
-        df["idx"] = competitors
+        df["Competitor"] = mean_row[i].keys()
+        df["idx"] = df["Competitor"].copy()
         df = df.set_index("idx")
         for key, value in mean_row[i].items():
             col_name = "Avg Query time (wrt " + filters[0] + ")"
-            v0 = value[0] if len(value) > 0 else 0
-            v1 = value[1] if len(value) > 1 else 0
-            df.at[key, "avg"] = v0
-            df.at[key, col_name] = f"{v0} ({v1}\\times)"
-        if "avg" in df.columns and not df.empty:
-            df.iat[0, df.columns.get_loc("avg")] = -1
-            df = df.sort_values(by=["avg"])
-            df = df.drop("avg", axis=1)
-        else:
-            print(f"Warning: DataFrame for row {i} is empty or missing 'avg' column")
+            df.at[key, "avg"] = value[0]
+            df.at[key, col_name] = str(value[0]) + " (" + str(value[1]) + "\\times)"
+        
+        # sort by 'temp' column ignoring the row of index 'Grafite'
+        df.iat[0, df.columns.get_loc("avg")] = -1
+        df = df.sort_values(by=["avg"])
+        # remove the 'temp' column
+        df = df.drop("avg", axis=1)
         df_list.append(df)
+    # for i in range(nrows): 
+    #     df = pd.DataFrame()
+    #     competitors = list(mean_row[i].keys())
+    #     df["Competitor"] = competitors
+    #     df["idx"] = competitors
+    #     df = df.set_index("idx")
+    #     for key, value in mean_row[i].items():
+    #         col_name = "Avg Query time (wrt " + filters[0] + ")"
+    #         v0 = value[0] if len(value) > 0 else 0
+    #         v1 = value[1] if len(value) > 1 else 0
+    #         df.at[key, "avg"] = v0
+    #         df.at[key, col_name] = f"{v0} ({v1}\\times)"
+    #     if "avg" in df.columns and not df.empty:
+    #         df.iat[0, df.columns.get_loc("avg")] = -1
+    #         df = df.sort_values(by=["avg"])
+    #         df = df.drop("avg", axis=1)
+    #     else:
+    #         print(f"Warning: DataFrame for row {i} is empty or missing 'avg' column")
+    #     df_list.append(df)
     print(6)
     return df_list
 
@@ -501,6 +460,166 @@ def plot_correlated():
     # plt.savefig(f"{out_folder}/corr_test_(Fig_8).png")
     plt.savefig(f"{out_folder}/corr_test_(Fig_8).pdf", bbox_inches="tight", pad_inches=0.01)
     # plt.savefig(Path(out_folder) / "corr_test_(Fig_8).pdf", bbox_inches="tight", pad_inches=0.01)
+
+def plot_qs():
+    LEGEND_FONT_SIZE = 7
+    YLABEL_FONT_SIZE = 9.5
+    XLABEL_FONT_SIZE = 9.5
+    WIDTH = 7.16808
+    HEIGHT = 7.16808 * 0.4
+    QS_VALUES = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
+    XLABELS = QS_VALUES
+    CORR_DEGREE = 8  # 固定使用 correlation degree = 1.0
+    
+    RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4", "rsqf"]    
+    corr_test_qs_base_path = f"{base_csv_path}/corr_test/qs"
+    
+    # 检查基础目录是否存在
+    if not os.path.exists(corr_test_qs_base_path):
+        raise FileNotFoundError(f"Base directory not found: {corr_test_qs_base_path}")
+    sorted_dirs = sorted(os.listdir(corr_test_qs_base_path), reverse=True)
+    if len(sorted_dirs) < 1:
+        raise FileNotFoundError("error, cannot find the latest test executed")
+    corr_test_qs_base_path = Path(corr_test_qs_base_path + '/' + sorted_dirs[0])
+    print(corr_test_qs_base_path)
+    
+    fig, axes = plt.subplots(2, 3, sharex=True, sharey='row', figsize=(WIDTH, HEIGHT))
+    values = [collections.defaultdict(list) for _ in range(len(QUERY_RANGE))]
+    time_values = [collections.defaultdict(list) for _ in range(len(QUERY_RANGE))]
+    
+    for (ds, r, qs) in itertools.product(RANGE_FILTERS, enumerate(QUERY_RANGE), QS_VALUES):
+        (idx, ran) = r
+        if ds == "rsqf" and r[0] > 0:
+            continue
+            
+        qs_dir = f"{corr_test_qs_base_path}/{qs}"
+        if not os.path.exists(qs_dir):
+            print(f"Warning: Directory not found: {qs_dir}")
+            # 添加 NaN 值以保持数据对齐
+            values[idx][ds].append(float('nan'))
+            time_values[idx][ds].append(float('nan'))
+            continue
+            
+        try:
+            if ds == "rencoder":
+                # rencoder 使用 rosetta 的数据
+                data = pd.read_csv(get_file("rosetta", r[1], f"kuniform_{CORR_DEGREE}", "qcorrelated", qs_dir))
+                data["fpr_opt"] = data["false_positives"] / data["n_queries"]
+                fpr = data["fpr_opt"][0]
+                time = data["query_time"][0]/data["n_queries"][0] * 10 ** 6
+                values[idx]["rencoder"].append(fpr)
+                time_values[idx]["rencoder"].append(time)
+                continue
+                
+            data = pd.read_csv(get_file(ds, r[1], f"kuniform_{CORR_DEGREE}", "qcorrelated", qs_dir))
+            data["fpr_opt"] = data["false_positives"] / data["n_queries"]
+            fpr = data["fpr_opt"][0]
+            time = data["query_time"][0]/data["n_queries"][0] * 10 ** 6
+            values[idx][ds].append(fpr)
+            time_values[idx][ds].append(time)
+            
+        except FileNotFoundError:
+            print(f"Warning: File not found for {ds}, range {r[1]}, qs {qs}")
+            # 添加 NaN 值以保持数据对齐
+            values[idx][ds].append(float('nan'))
+            time_values[idx][ds].append(float('nan'))
+            continue
+        except Exception as e:
+            print(f"Error processing {ds}, range {r[1]}, qs {qs}: {e}")
+            values[idx][ds].append(float('nan'))
+            time_values[idx][ds].append(float('nan'))
+            continue
+            
+        # except FileNotFoundError:
+        #     print(f"Warning: File not found for {ds}, range {r[1]}, qs {qs}")
+        #     # 添加 NaN 值以保持数据对齐
+        #     values[idx][ds].append(float('nan'))
+        #     time_values[idx][ds].append(float('nan'))
+        #     continue
+        # except Exception as e:
+        #     print(f"Error processing {ds}, range {r[1]}, qs {qs}: {e}")
+        #     values[idx][ds].append(float('nan'))
+        #     time_values[idx][ds].append(float('nan'))
+        #     continue
+
+    # 绘制 FPR 图
+    for r in range(len(QUERY_RANGE)):
+        for key, data_list in values[r].items():
+            if key == "rsqf" and r > 0:
+                continue
+            # 过滤掉 NaN 值
+            valid_indices = [i for i, val in enumerate(data_list) if not np.isnan(val)]
+            if valid_indices:
+                valid_qs = [QS_VALUES[i] for i in valid_indices]
+                valid_data = [data_list[i] for i in valid_indices]
+                axes[0][r].plot(valid_qs, valid_data, **RANGE_FILTERS_STYLE_KWARGS[key], **LINES_STYLE)
+     
+    # 绘制时间图
+    for r in range(len(QUERY_RANGE)):
+        for key, data_list in time_values[r].items():
+            if key == "rsqf" and r > 0:
+                continue
+            # 过滤掉 NaN 值
+            valid_indices = [i for i, val in enumerate(data_list) if not np.isnan(val)]
+            if valid_indices:
+                valid_qs = [QS_VALUES[i] for i in valid_indices]
+                valid_data = [data_list[i] for i in valid_indices]
+                axes[1][r].plot(valid_qs, valid_data, **RANGE_FILTERS_STYLE_KWARGS[key], **LINES_STYLE)
+                
+        # 只有在有有效数据时才设置对数缩放
+        if any(len([val for val in data_list if not np.isnan(val) and val > 0]) > 0 
+               for data_list in time_values[r].values()):
+            axes[1][r].set_yscale("log")
+    
+    axes[1][0].set_ylabel("Time [ns/query]", fontsize=YLABEL_FONT_SIZE)
+    
+    for ax in axes.flatten():
+        ax.margins(0.04)
+        # 检查是否有有效数据再设置 symlog
+        has_positive_data = False
+        if ax in axes[0]:  # FPR 图
+            r_idx = list(axes[0]).index(ax)
+            has_positive_data = any(len([val for val in data_list if not np.isnan(val) and val > 0]) > 0 
+                                  for data_list in values[r_idx].values())
+        else:  # 时间图
+            r_idx = list(axes[1]).index(ax)
+            has_positive_data = any(len([val for val in data_list if not np.isnan(val) and val > 0]) > 0 
+                                  for data_list in time_values[r_idx].values())
+        
+        if has_positive_data:
+            ax.set_yscale("symlog", linthresh=(1e-05))
+        ax.xaxis.set_minor_locator(matplotlib.ticker.MultipleLocator(5))
+        # 设置主要刻度每隔10显示，次要刻度每隔5显示
+        # ax.set_xticks([qs for qs in QS_VALUES if qs % 10 == 0], minor=False)
+        # ax.set_xticks([qs for qs in QS_VALUES if qs % 5 == 0], minor=True)
+        ax.set_xticks([0]+[qs for qs in QS_VALUES if qs % 10 == 0])
+
+    for ax in axes[1].flatten():
+        ax.set_xlabel("Q/S", fontsize=XLABEL_FONT_SIZE)
+        # 只在有正值数据时设置对数定位器
+        r_idx = list(axes[1]).index(ax)
+        has_positive_data = any(len([val for val in data_list if not np.isnan(val) and val > 0]) > 0 
+                              for data_list in time_values[r_idx].values())
+        if has_positive_data:
+            ax.yaxis.set_minor_locator(matplotlib.ticker.LogLocator(numticks=10, subs="auto"))
+    
+    for i in range(len(QUERY_RANGE)):
+        axes[0][i].set_title(QUERY_RANGE_LABEL[i], fontsize=XLABEL_FONT_SIZE)
+    plt.subplots_adjust(hspace=0.1, wspace=0.15)
+    axes[0][0].set_ylabel("False Positive Rate", fontsize=YLABEL_FONT_SIZE)
+    # 只在有正值数据时设置对数定位器
+    has_positive_fpr_data = any(len([val for val in data_list if not np.isnan(val) and val > 0]) > 0 
+                               for data_list in values[0].values())
+    if has_positive_fpr_data:
+        axes[0][0].yaxis.set_minor_locator(matplotlib.ticker.LogLocator(numticks=10, subs="auto"))
+
+    lines, labels = axes[0][0].get_legend_handles_labels()
+    order = list(range(len(RANGE_FILTERS)))
+    axes[0][2].legend([lines[idx] for idx in order],[labels[idx] for idx in order], 
+                    loc="center left", bbox_to_anchor=(1, -0.05),
+                    fancybox=True, shadow=False, ncol=1, fontsize=LEGEND_FONT_SIZE)
+    
+    plt.savefig(f"{out_folder}/qs_test(Fig_7)_CORR_DEGREE_{CORR_DEGREE/10}.pdf", bbox_inches="tight", pad_inches=0.01)
 
 def plot_vary_memento_size():
     LEGEND_FONT_SIZE = 7
@@ -728,7 +847,8 @@ PLOTTERS = {"fpr": plot_fpr,
             "correlated": plot_correlated,
             "vary_memento_size": plot_vary_memento_size,
             "expandability": plot_expandability,
-            "btree": plot_btree}
+            "btree": plot_btree,
+            "qs": plot_qs}
 
 
 if __name__ == "__main__":
