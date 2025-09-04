@@ -163,17 +163,19 @@ def generate_tables(fpr_test_path, fpr_real_test_path, filters, workloads):
         if type(x) is tuple:
             if not os.path.isfile(get_file(ds, r[1], x[0], x[1], path=fpr_test_path)):
                 continue
-            if ds == "rencoder":
-                data = pd.read_csv(get_file("rosetta", r[1], x[0], x[1], path=fpr_test_path))
-            else:
-                data = pd.read_csv(get_file(ds, r[1], x[0], x[1], path=fpr_test_path))
+            # if ds == "rencoder":
+            #     data = pd.read_csv(get_file("rosetta", r[1], x[0], x[1], path=fpr_test_path))
+            # else:
+            #     data = pd.read_csv(get_file(ds, r[1], x[0], x[1], path=fpr_test_path))
+            data = pd.read_csv(get_file(ds, r[1], x[0], x[1], path=fpr_test_path))
         else:
             if not os.path.isfile(get_file(ds, r[1], x, path=fpr_real_test_path)):
                 continue
-            if ds == "rencoder":
-                data = pd.read_csv(get_file("rosetta", r[1], x, path=fpr_real_test_path))
-            else:
-                data = pd.read_csv(get_file(ds, r[1], x, path=fpr_real_test_path))
+            # if ds == "rencoder":
+            #     data = pd.read_csv(get_file("rosetta", r[1], x, path=fpr_real_test_path))
+            # else:
+            #     data = pd.read_csv(get_file(ds, r[1], x, path=fpr_real_test_path))
+            data = pd.read_csv(get_file(ds, r[1], x, path=fpr_real_test_path))
         data["single_query_time"] = (data["query_time"] / data["n_queries"]) * 10**6
         workload_row[row][ds].append(round(data["single_query_time"].mean(), 2))
     mean_row = [collections.defaultdict(list) for _ in range(nrows)]
@@ -400,15 +402,15 @@ def plot_correlated():
         (idx, ran) = r
         if ds == "rsqf" and r[0] > 0:
             continue
-        if ds == "rencoder":
-            ds = "rosetta"
-            data = pd.read_csv(get_file(ds, r[1], f"kuniform_{deg}", "qcorrelated", corr_test_path))
-            data["fpr_opt"] = data["false_positives"] / data["n_queries"]
-            fpr = data["fpr_opt"][0]
-            time = data["query_time"][0]/data["n_queries"][0] * 10 ** 6
-            values[idx]["rencoder"].append(fpr)
-            time_values[idx]["rencoder"].append(time)
-            continue
+        # if ds == "rencoder":
+        #     ds = "rosetta"
+        #     data = pd.read_csv(get_file(ds, r[1], f"kuniform_{deg}", "qcorrelated", corr_test_path))
+        #     data["fpr_opt"] = data["false_positives"] / data["n_queries"]
+        #     fpr = data["fpr_opt"][0]
+        #     time = data["query_time"][0]/data["n_queries"][0] * 10 ** 6
+        #     values[idx]["rencoder"].append(fpr)
+        #     time_values[idx]["rencoder"].append(time)
+        #     continue
         data = pd.read_csv(get_file(ds, r[1], f"kuniform_{deg}", "qcorrelated", corr_test_path))
 
         data["fpr_opt"] = data["false_positives"] / data["n_queries"]
