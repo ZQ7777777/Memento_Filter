@@ -503,15 +503,15 @@ def plot_qs():
             continue
             
         try:
-            if ds == "rencoder":
-                # rencoder 使用 rosetta 的数据
-                data = pd.read_csv(get_file("rosetta", r[1], f"kuniform_{CORR_DEGREE}", "qcorrelated", qs_dir))
-                data["fpr_opt"] = data["false_positives"] / data["n_queries"]
-                fpr = data["fpr_opt"][0]
-                time = data["query_time"][0]/data["n_queries"][0] * 10 ** 6
-                values[idx]["rencoder"].append(fpr)
-                time_values[idx]["rencoder"].append(time)
-                continue
+            # if ds == "rencoder":
+            #     # rencoder 使用 rosetta 的数据
+            #     data = pd.read_csv(get_file("rosetta", r[1], f"kuniform_{CORR_DEGREE}", "qcorrelated", qs_dir))
+            #     data["fpr_opt"] = data["false_positives"] / data["n_queries"]
+            #     fpr = data["fpr_opt"][0]
+            #     time = data["query_time"][0]/data["n_queries"][0] * 10 ** 6
+            #     values[idx]["rencoder"].append(fpr)
+            #     time_values[idx]["rencoder"].append(time)
+            #     continue
                 
             data = pd.read_csv(get_file(ds, r[1], f"kuniform_{CORR_DEGREE}", "qcorrelated", qs_dir))
             data["fpr_opt"] = data["false_positives"] / data["n_queries"]
