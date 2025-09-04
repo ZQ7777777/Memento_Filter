@@ -463,7 +463,7 @@ def plot_correlated():
     plt.savefig(f"{out_folder}/corr_test_(Fig_8).pdf", bbox_inches="tight", pad_inches=0.01)
     # plt.savefig(Path(out_folder) / "corr_test_(Fig_8).pdf", bbox_inches="tight", pad_inches=0.01)
 
-def plot_qs():
+def plot_qs(show_legend=True):
     LEGEND_FONT_SIZE = 7
     YLABEL_FONT_SIZE = 9.5
     XLABEL_FONT_SIZE = 9.5
@@ -614,12 +614,12 @@ def plot_qs():
                                for data_list in values[0].values())
     if has_positive_fpr_data:
         axes[0][0].yaxis.set_minor_locator(matplotlib.ticker.LogLocator(numticks=10, subs="auto"))
-
-    lines, labels = axes[0][0].get_legend_handles_labels()
-    order = list(range(len(RANGE_FILTERS)))
-    axes[0][2].legend([lines[idx] for idx in order],[labels[idx] for idx in order], 
-                    loc="center left", bbox_to_anchor=(1, -0.05),
-                    fancybox=True, shadow=False, ncol=1, fontsize=LEGEND_FONT_SIZE)
+    # if show_legend:
+    #     lines, labels = axes[0][0].get_legend_handles_labels()
+    #     order = list(range(len(RANGE_FILTERS)))
+    #     axes[0][2].legend([lines[idx] for idx in order],[labels[idx] for idx in order], 
+    #                     loc="center left", bbox_to_anchor=(1, -0.05),
+    #                     fancybox=True, shadow=False, ncol=1, fontsize=LEGEND_FONT_SIZE)
     
     plt.savefig(f"{out_folder}/qs_test(Fig_7)_CORR_DEGREE_{CORR_DEGREE/10}.pdf", bbox_inches="tight", pad_inches=0.01)
 
