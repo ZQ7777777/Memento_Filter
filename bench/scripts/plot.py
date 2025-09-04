@@ -150,8 +150,9 @@ def print_fpr_test(fpr_test_path, fpr_real_test_path, filters, workloads, name):
     else:
         ncol = len(filters)
         bbox = (0.5, 1.5)
-    axes[0][1].legend(lines, labels, loc="upper center", bbox_to_anchor=bbox,
-            fancybox=True, shadow=False, ncol=ncol, fontsize=LEGEND_FONT_SIZE)
+    #show legend
+    # axes[0][1].legend(lines, labels, loc="upper center", bbox_to_anchor=bbox,
+    #         fancybox=True, shadow=False, ncol=ncol, fontsize=LEGEND_FONT_SIZE)
     fig.savefig(f"{out_folder}/fpr_test_{name}_(Fig_9).pdf", bbox_inches="tight", pad_inches=0.01)
 
 def generate_tables(fpr_test_path, fpr_real_test_path, filters, workloads):
@@ -463,7 +464,7 @@ def plot_correlated():
     plt.savefig(f"{out_folder}/corr_test_(Fig_8).pdf", bbox_inches="tight", pad_inches=0.01)
     # plt.savefig(Path(out_folder) / "corr_test_(Fig_8).pdf", bbox_inches="tight", pad_inches=0.01)
 
-def plot_qs(show_legend=True):
+def plot_qs():
     LEGEND_FONT_SIZE = 7
     YLABEL_FONT_SIZE = 9.5
     XLABEL_FONT_SIZE = 9.5
@@ -614,12 +615,11 @@ def plot_qs(show_legend=True):
                                for data_list in values[0].values())
     if has_positive_fpr_data:
         axes[0][0].yaxis.set_minor_locator(matplotlib.ticker.LogLocator(numticks=10, subs="auto"))
-    # if show_legend:
-    #     lines, labels = axes[0][0].get_legend_handles_labels()
-    #     order = list(range(len(RANGE_FILTERS)))
-    #     axes[0][2].legend([lines[idx] for idx in order],[labels[idx] for idx in order], 
-    #                     loc="center left", bbox_to_anchor=(1, -0.05),
-    #                     fancybox=True, shadow=False, ncol=1, fontsize=LEGEND_FONT_SIZE)
+    lines, labels = axes[0][0].get_legend_handles_labels()
+    order = list(range(len(RANGE_FILTERS)))
+    axes[0][2].legend([lines[idx] for idx in order],[labels[idx] for idx in order], 
+                    loc="center left", bbox_to_anchor=(1, -0.05),
+                    fancybox=True, shadow=False, ncol=1, fontsize=LEGEND_FONT_SIZE)
     
     plt.savefig(f"{out_folder}/qs_test(Fig_7)_CORR_DEGREE_{CORR_DEGREE/10}.pdf", bbox_inches="tight", pad_inches=0.01)
 
