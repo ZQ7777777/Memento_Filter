@@ -279,17 +279,17 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
                         fp++;
                     }
                 }
+                else if (!query_result && original_result)
+                {
+                    std::cerr << "[!] alert, found false negative!" << std::endl;
+                    fn++;
+                }
+                delete[] fp_keys;
             } catch (...) {
                 std::cerr << "[!] Exception caught during range query with FP learning." << std::endl;
                 delete[] fp_keys;
                 throw; // rethrow the exception after cleanup
             }    
-            else if (!query_result && original_result)
-            {
-                std::cerr << "[!] alert, found false negative!" << std::endl;
-                fn++;
-            }
-            delete[] fp_keys;
         }
     }
     stop_timer(query_time);
