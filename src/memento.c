@@ -3182,6 +3182,8 @@ static inline void all_mementos_for_fingerprint(const QF *qf, uint64_t pos,
                     fprintf(stderr, "************ Current size: %d, Max size: %d\n", *candidateMementosSize, maxCandidateMementosSize);
                     fprintf(stderr, "Left memento: %lu, Right memento: %lu\n", left_memento, right_memento);
                     fprintf(stderr, "Current memento: %lu\n", current_memento);
+                    for (int i = 0; i < *candidateMementosSize; i++)
+                        fprintf(stderr, "Candidate memento %d: %lu\n", i, candidateMementos[i]);
                     abort();
                 }
                 candidateMementos[(*candidateMementosSize)++] = current_memento;
