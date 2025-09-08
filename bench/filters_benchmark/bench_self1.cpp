@@ -7,7 +7,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <csignal>
 #include <iostream>
 #include <iterator>
 #include <boost/sort/sort.hpp>
@@ -257,38 +256,33 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
                 fn++;
             }
         } else {
-            uint64_t* fp_keys = new uint64_t[right - left + 1];
+            uint64_t* fp_keys = new uint64_t[right - left + 1+right - left + 1];
             uint64_t fp_keys_size = 0;
-            try {
-                query_result = qf_range_query_fp_learning4(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK, fp_keys, &fp_keys_size);
-                if (query_result) {
-                    // Check each FP key individually with AdaPerfectCF
-                    bool all_in_cache = true;
-                    for (uint64_t i = 0; i < fp_keys_size; ++i) {
-                        if (f->fp_cache->Contain64(fp_keys[i]) != cuckoofilter::Ok) {
-                            all_in_cache = false;
-                            if (!original_result) {
-                                f->fp_cache->Add64(fp_keys[i]);
-                            }
+            query_result = qf_range_query_fp_learning4(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK, fp_keys, &fp_keys_size);
+            if (query_result) {
+                // Check each FP key individually with AdaPerfectCF
+                bool all_in_cache = true;
+                for (uint64_t i = 0; i < fp_keys_size; ++i) {
+                    if (f->fp_cache->Contain64(fp_keys[i]) != cuckoofilter::Ok) {
+                        all_in_cache = false;
+                        if (!original_result) {
+                            f->fp_cache->Add64(fp_keys[i]);
                         }
                     }
-                    if (all_in_cache) {
-                        query_result = false; // All FPs are in cache, return false
-                    } 
-                    if (query_result && !original_result) {
-                        fp++;
-                    }
                 }
-                else if (!query_result && original_result)
-                {
-                    std::cerr << "[!] alert, found false negative!" << std::endl;
-                    fn++;
+                if (all_in_cache) {
+                    query_result = false; // All FPs are in cache, return false
+                } 
+                if (query_result && !original_result) {
+                    fp++;
                 }
-                delete[] fp_keys;
-            } catch (...) {
-                std::cerr << "[!] Exception caught during range query with FP learning." << std::endl;
-                throw; // rethrow the exception after cleanup
-            }    
+            }
+            else if (!query_result && original_result)
+            {
+                std::cerr << "[!] alert, found false negative!" << std::endl;
+                fn++;
+            }
+            delete[] fp_keys;
         }
     }
     stop_timer(query_time);
@@ -307,34 +301,8 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
     std::cout << "[+] test executed successfully, printing stats and closing." << std::endl;
 }
 
-void signal_handler(int signal) {
-    switch (signal) {
-        case SIGSEGV:
-            std::cerr << "[!] Segmentation fault (SIGSEGV) detected." << std::endl;
-            break;
-        case SIGABRT:
-            std::cerr << "[!] Aborted (SIGABRT) detected." << std::endl;
-            break;
-        case SIGFPE:
-            std::cerr << "[!] Floating-point exception (SIGFPE) detected." << std::endl;
-            break;
-        case SIGILL:
-            std::cerr << "[!] Illegal instruction (SIGILL) detected." << std::endl;
-            break;
-        default:
-            std::cerr << "[!] Signal " << signal << " detected." << std::endl;
-            break;
-    }
-    std::exit(signal);
-}
-
-int main(int argc, char const *argv[]) {
-    // Register signal handlers
-    std::signal(SIGSEGV, signal_handler);
-    std::signal(SIGABRT, signal_handler);
-    std::signal(SIGFPE, signal_handler);
-    std::signal(SIGILL, signal_handler);
-
+int main(int argc, char const *argv[])
+{
     auto parser = init_parser("bench-memento");
 
     try
