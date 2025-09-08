@@ -287,7 +287,6 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
                 delete[] fp_keys;
             } catch (...) {
                 std::cerr << "[!] Exception caught during range query with FP learning." << std::endl;
-                delete[] fp_keys;
                 throw; // rethrow the exception after cleanup
             }    
         }
