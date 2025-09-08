@@ -3085,25 +3085,25 @@ static inline void all_mementos_for_fingerprint(const QF *qf, uint64_t pos,
         if (current_memento > right_memento || next_memento < left_memento)
             return;
         if (current_memento >= left_memento) {
-            if (*candidateMementosSize >= maxCandidateMementosSize) {
-                fprintf(stderr, "Error: candidateMementos array too small in all_mementos_for_fingerprint!\nLine = %d\n", __LINE__);
-                fprintf(stderr, "Current size: %d, Max size: %d\n", *candidateMementosSize, maxCandidateMementosSize);
-                abort();
-            }
+            // if (*candidateMementosSize >= maxCandidateMementosSize) {
+            //     fprintf(stderr, "Error: candidateMementos array too small in all_mementos_for_fingerprint!\nLine = %d\n", __LINE__);
+            //     fprintf(stderr, "Current size: %d, Max size: %d\n", *candidateMementosSize, maxCandidateMementosSize);
+            //     abort();
+            // }
             // candidateMementos[(*candidateMementosSize)++] = current_memento;
             candidateMementos[current_memento-left_memento] = 1;
         }
         if (next_memento != current_memento && next_memento <= right_memento) {
-            if (*candidateMementosSize >= maxCandidateMementosSize) {
-                fprintf(stderr, "Error: candidateMementos array too small in all_mementos_for_fingerprint!\nLine = %d\n", __LINE__);
-                fprintf(stderr, "************ Current size: %d, Max size: %d\n", *candidateMementosSize, maxCandidateMementosSize);
-                fprintf(stderr, "Left memento: %lu, Right memento: %lu\n", left_memento, right_memento);
-                uint64_t current_fingerprint = GET_FINGERPRINT(qf, pos);
-                uint64_t next_fingerprint = GET_FINGERPRINT(qf, pos + 1);
-                fprintf(stderr, "Current fingerprint: %lu, Next fingerprint: %lu\n", current_fingerprint, next_fingerprint);
-                fprintf(stderr, "Current memento: %lu, Next memento: %lu\n", current_memento, next_memento);
-                abort();
-            }
+            // if (*candidateMementosSize >= maxCandidateMementosSize) {
+            //     fprintf(stderr, "Error: candidateMementos array too small in all_mementos_for_fingerprint!\nLine = %d\n", __LINE__);
+            //     fprintf(stderr, "************ Current size: %d, Max size: %d\n", *candidateMementosSize, maxCandidateMementosSize);
+            //     fprintf(stderr, "Left memento: %lu, Right memento: %lu\n", left_memento, right_memento);
+            //     uint64_t current_fingerprint = GET_FINGERPRINT(qf, pos);
+            //     uint64_t next_fingerprint = GET_FINGERPRINT(qf, pos + 1);
+            //     fprintf(stderr, "Current fingerprint: %lu, Next fingerprint: %lu\n", current_fingerprint, next_fingerprint);
+            //     fprintf(stderr, "Current memento: %lu, Next memento: %lu\n", current_memento, next_memento);
+            //     abort();
+            // }
             // candidateMementos[(*candidateMementosSize)++] = next_memento;
             candidateMementos[current_memento-left_memento] = 1;
         }
@@ -3119,20 +3119,20 @@ static inline void all_mementos_for_fingerprint(const QF *qf, uint64_t pos,
         if (next_memento > right_memento || current_memento < left_memento)
             return;
         if (current_memento <= right_memento) {
-            if (*candidateMementosSize >= maxCandidateMementosSize) {
-                fprintf(stderr, "Error: candidateMementos array too small in all_mementos_for_fingerprint!\nLine = %d\n", __LINE__);
-                fprintf(stderr, "Current size: %d, Max size: %d\n", *candidateMementosSize, maxCandidateMementosSize);
-                abort();
-            }
+            // if (*candidateMementosSize >= maxCandidateMementosSize) {
+            //     fprintf(stderr, "Error: candidateMementos array too small in all_mementos_for_fingerprint!\nLine = %d\n", __LINE__);
+            //     fprintf(stderr, "Current size: %d, Max size: %d\n", *candidateMementosSize, maxCandidateMementosSize);
+            //     abort();
+            // }
             // candidateMementos[(*candidateMementosSize)++] = current_memento;
             candidateMementos[current_memento-left_memento] = 1;
         }
         if (next_memento >= left_memento) {
-            if (*candidateMementosSize >= maxCandidateMementosSize) {
-                fprintf(stderr, "Error: candidateMementos array too small in all_mementos_for_fingerprint!\nLine = %d\n", __LINE__);
-                fprintf(stderr, "Current size: %d, Max size: %d\n", *candidateMementosSize, maxCandidateMementosSize);
-                abort();
-            }
+            // if (*candidateMementosSize >= maxCandidateMementosSize) {
+            //     fprintf(stderr, "Error: candidateMementos array too small in all_mementos_for_fingerprint!\nLine = %d\n", __LINE__);
+            //     fprintf(stderr, "Current size: %d, Max size: %d\n", *candidateMementosSize, maxCandidateMementosSize);
+            //     abort();
+            // }
             // candidateMementos[(*candidateMementosSize)++] = next_memento;
             candidateMementos[current_memento-left_memento] = 1;
         }
@@ -3181,15 +3181,15 @@ static inline void all_mementos_for_fingerprint(const QF *qf, uint64_t pos,
             current_full_bits -= qf->metadata->memento_bits;
             if (left_memento <= current_memento && current_memento <= right_memento) {
                 // return current_memento;
-                if (*candidateMementosSize >= maxCandidateMementosSize) {
-                    fprintf(stderr, "Error: candidateMementos array too small in all_mementos_for_fingerprint!\nLine = %d\n", __LINE__);
-                    fprintf(stderr, "************ Current size: %d, Max size: %d\n", *candidateMementosSize, maxCandidateMementosSize);
-                    fprintf(stderr, "Left memento: %lu, Right memento: %lu\n", left_memento, right_memento);
-                    fprintf(stderr, "Current memento: %lu\n", current_memento);
-                    for (int i = 0; i < *candidateMementosSize; i++)
-                        fprintf(stderr, "Candidate memento %d: %lu\n", i, candidateMementos[i]);
-                    abort();
-                }
+                // if (*candidateMementosSize >= maxCandidateMementosSize) {
+                //     fprintf(stderr, "Error: candidateMementos array too small in all_mementos_for_fingerprint!\nLine = %d\n", __LINE__);
+                //     fprintf(stderr, "************ Current size: %d, Max size: %d\n", *candidateMementosSize, maxCandidateMementosSize);
+                //     fprintf(stderr, "Left memento: %lu, Right memento: %lu\n", left_memento, right_memento);
+                //     fprintf(stderr, "Current memento: %lu\n", current_memento);
+                //     for (int i = 0; i < *candidateMementosSize; i++)
+                //         fprintf(stderr, "Candidate memento %d: %lu\n", i, candidateMementos[i]);
+                //     abort();
+                // }
                 // candidateMementos[(*candidateMementosSize)++] = current_memento;
                 candidateMementos[current_memento-left_memento] = 1;
             }
