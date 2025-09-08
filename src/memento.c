@@ -3099,6 +3099,7 @@ static inline void all_mementos_for_fingerprint(const QF *qf, uint64_t pos,
                 uint64_t current_fingerprint = GET_FINGERPRINT(qf, pos);
                 uint64_t next_fingerprint = GET_FINGERPRINT(qf, pos + 1);
                 fprintf(stderr, "Current fingerprint: %lu, Next fingerprint: %lu\n", current_fingerprint, next_fingerprint);
+                fprintf(stderr, "Current memento: %lu, Next memento: %lu\n", current_memento, next_memento);
                 abort();
             }
             candidateMementos[(*candidateMementosSize)++] = next_memento;
