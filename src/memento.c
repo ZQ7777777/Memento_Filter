@@ -3095,6 +3095,10 @@ static inline void all_mementos_for_fingerprint(const QF *qf, uint64_t pos,
             if (*candidateMementosSize >= maxCandidateMementosSize) {
                 fprintf(stderr, "Error: candidateMementos array too small in all_mementos_for_fingerprint!\nLine = %d\n", __LINE__);
                 fprintf(stderr, "************ Current size: %d, Max size: %d\n", *candidateMementosSize, maxCandidateMementosSize);
+                fprintf(stderr, "Left memento: %lu, Right memento: %lu\n", left_memento, right_memento);
+                uint64_t current_fingerprint = GET_FINGERPRINT(qf, pos);
+                uint64_t next_fingerprint = GET_FINGERPRINT(qf, pos + 1);
+                fprintf(stderr, "Current fingerprint: %lu, Next fingerprint: %lu\n", current_fingerprint, next_fingerprint);
                 abort();
             }
             candidateMementos[(*candidateMementosSize)++] = next_memento;
