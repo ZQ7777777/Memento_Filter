@@ -4446,7 +4446,7 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
             //                             ? 1 : 2);
             if (!is_runend(qf, fingerprint_pos) && 
                     current_fingerprint > next_fingerprint) {
-                uint64_t* candidateMementos = (uint64_t*)malloc((r_memento - l_memento + 1) * sizeof(uint64_t));
+                uint64_t* candidateMementos = (uint64_t*)malloc(2*(r_memento - l_memento + 1) * sizeof(uint64_t));
                 uint64_t candidateMementosSize = 0;
                 // candidate_memento = lower_bound_mementos_for_fingerprint(qf, 
                 //                                     fingerprint_pos, l_memento);
@@ -4549,7 +4549,7 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                     //     (*fp_keys_size)++;
                     //     ret = positive_res;
                     // }
-                    uint64_t* candidateMementos = (uint64_t*)malloc((max_memento_value - l_memento + 1) * sizeof(uint64_t));
+                    uint64_t* candidateMementos = (uint64_t*)malloc(2*(max_memento_value - l_memento + 1) * sizeof(uint64_t));
                     uint64_t candidateMementosSize = 0;
                     all_mementos_for_fingerprint(qf, fingerprint_pos, l_memento, max_memento_value, candidateMementos, &candidateMementosSize);
                     for (uint64_t i = 0; i < candidateMementosSize; i++) {
@@ -4628,7 +4628,7 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                     const uint64_t next_fingerprint = GET_FINGERPRINT(qf, fingerprint_pos + 1);
                     if (!is_runend(qf, fingerprint_pos) && 
                             current_fingerprint > next_fingerprint) {
-                        uint64_t* candidateMementos = (uint64_t*)malloc((max_memento_value + 1) * sizeof(uint64_t));
+                        uint64_t* candidateMementos = (uint64_t*)malloc(2*(max_memento_value + 1) * sizeof(uint64_t));
                         uint64_t candidateMementosSize = 0;
                         all_mementos_for_fingerprint(qf, fingerprint_pos, 0, max_memento_value, candidateMementos, &candidateMementosSize);
                         for (uint64_t i = 0; i < candidateMementosSize; i++) {
@@ -4698,7 +4698,7 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                     //     (*fp_keys_size)++;
                     //     ret = positive_res;
                     // }
-                    uint64_t* candidateMementos = (uint64_t*)malloc((r_memento + 1) * sizeof(uint64_t));
+                    uint64_t* candidateMementos = (uint64_t*)malloc(2*(r_memento + 1) * sizeof(uint64_t));
                     uint64_t candidateMementosSize = 0;
                     all_mementos_for_fingerprint(qf, fingerprint_pos, 0, r_memento, candidateMementos, &candidateMementosSize);
                     for (uint64_t i = 0; i < candidateMementosSize; i++) {
