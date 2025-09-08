@@ -4380,6 +4380,8 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                                       // NEW IN SELF
 {
     int ret = 0;
+    uint64_t max_fp_keys_size = *fp_keys_size;
+    *fp_keys_size = 0;
     const uint64_t max_memento_value = (1ULL << qf->metadata->memento_bits) - 1;
     const uint64_t orig_l_key = l_key;
     const uint64_t orig_r_key = r_key;
@@ -4446,6 +4448,7 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
             //                             ? 1 : 2);
             if (!is_runend(qf, fingerprint_pos) && 
                     current_fingerprint > next_fingerprint) {
+                
                 uint64_t* candidateMementos = (uint64_t*)malloc(2*(r_memento - l_memento + 1) * sizeof(uint64_t));
                 uint64_t candidateMementosSize = 0;
                 // candidate_memento = lower_bound_mementos_for_fingerprint(qf, 
@@ -4453,6 +4456,10 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                 all_mementos_for_fingerprint(qf, fingerprint_pos, l_memento, r_memento, candidateMementos, &candidateMementosSize);
                 for (uint64_t i = 0; i < candidateMementosSize; i++) {
                     uint64_t candidate_key = candidateMementos[i] | (orig_l_key << qf->metadata->memento_bits);
+                    if (*fp_keys_size >= max_fp_keys_size) {
+                        fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
+                        return -1;
+                    }
                     fp_keys[*fp_keys_size] = candidate_key;
                     (*fp_keys_size)++;
                     ret = true;
@@ -4479,6 +4486,10 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                 if (l_memento <= candidate_memento && candidate_memento <= r_memento)
                 {
                     uint64_t candidate_key =  candidate_memento | (orig_l_key << qf->metadata->memento_bits);
+                    if (*fp_keys_size >= max_fp_keys_size) {
+                        fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
+                        return -1;
+                    }
                     fp_keys[*fp_keys_size] = candidate_key;
                     (*fp_keys_size)++;
                     ret = true;
@@ -4554,6 +4565,10 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                     all_mementos_for_fingerprint(qf, fingerprint_pos, l_memento, max_memento_value, candidateMementos, &candidateMementosSize);
                     for (uint64_t i = 0; i < candidateMementosSize; i++) {
                         uint64_t candidate_key = candidateMementos[i] | (orig_l_key << qf->metadata->memento_bits);
+                        if (*fp_keys_size >= max_fp_keys_size) {
+                            fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
+                            return -1;
+                        }
                         fp_keys[*fp_keys_size] = candidate_key;
                         (*fp_keys_size)++;
                         ret = true;
@@ -4568,6 +4583,10 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                     if (l_memento <= GET_MEMENTO(qf, fingerprint_pos))
                     {
                         uint64_t candidate_key =  GET_MEMENTO(qf, fingerprint_pos) | (orig_l_key << qf->metadata->memento_bits);
+                        if (*fp_keys_size >= max_fp_keys_size) {
+                            fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
+                            return -1;
+                        }
                         fp_keys[*fp_keys_size] = candidate_key;
                         (*fp_keys_size)++;
                         ret = true; 
@@ -4633,6 +4652,10 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                         all_mementos_for_fingerprint(qf, fingerprint_pos, 0, max_memento_value, candidateMementos, &candidateMementosSize);
                         for (uint64_t i = 0; i < candidateMementosSize; i++) {
                             uint64_t candidate_key = candidateMementos[i] | (orig_l_key << qf->metadata->memento_bits);
+                            if (*fp_keys_size >= max_fp_keys_size) {
+                                fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
+                                return -1;
+                            }
                             fp_keys[*fp_keys_size] = candidate_key;
                             (*fp_keys_size)++;
                             ret = true;
@@ -4650,6 +4673,10 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                         if (l_memento <= candidate_memento && candidate_memento <= r_memento)
                         {
                             uint64_t candidate_key =  candidate_memento | (orig_l_key << qf->metadata->memento_bits);
+                            if (*fp_keys_size >= max_fp_keys_size) {
+                                fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
+                                return -1;
+                            }
                             fp_keys[*fp_keys_size] = candidate_key;
                             (*fp_keys_size)++;
                             ret = true;
@@ -4703,6 +4730,10 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                     all_mementos_for_fingerprint(qf, fingerprint_pos, 0, r_memento, candidateMementos, &candidateMementosSize);
                     for (uint64_t i = 0; i < candidateMementosSize; i++) {
                         uint64_t candidate_key = candidateMementos[i] | (orig_l_key << qf->metadata->memento_bits);
+                        if (*fp_keys_size >= max_fp_keys_size) {
+                            fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
+                            return -1;
+                        }
                         fp_keys[*fp_keys_size] = candidate_key;
                         (*fp_keys_size)++;
                         ret = true;
@@ -4717,6 +4748,10 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                     if (GET_MEMENTO(qf, fingerprint_pos) <= r_memento)
                     {
                         uint64_t candidate_key =  GET_MEMENTO(qf, fingerprint_pos) | (orig_r_key << qf->metadata->memento_bits);
+                        if (*fp_keys_size >= max_fp_keys_size) {
+                            fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
+                            return -1;
+                        }
                         fp_keys[*fp_keys_size] = candidate_key;
                         (*fp_keys_size)++;
                         ret = true;
