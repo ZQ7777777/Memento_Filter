@@ -3072,6 +3072,88 @@ static inline uint64_t lower_bound_mementos_for_fingerprint(const QF *qf, uint64
     }
 }
 
+// return all mementos >= left_memento and <= right_memento
+__attribute__((always_inline))
+static inline void all_mementos_for_fingerprint(const QF *qf, uint64_t pos, 
+    uint64_t left_memento, uint64_t right_memento, uint64_t *candidateMementos, uint64_t *candidateMementosSize)    // NEW IN self
+{
+    uint64_t current_memento = GET_MEMENTO(qf, pos);
+    uint64_t next_memento = GET_MEMENTO(qf, pos + 1);
+    if (current_memento < next_memento) {
+        if (current_memento > right_memento || next_memento < left_memento)
+            return;
+        if (current_memento >= left_memento)
+            candidateMementos[(*candidateMementosSize)++] = current_memento;
+        if (next_memento <= right_memento)   
+            candidateMementos[(*candidateMementosSize)++] = next_memento;
+    }
+    else {
+        // // Mementos encoded as a sorted list
+        // if (target_memento <= next_memento)
+        //     return next_memento;
+        // uint64_t max_memento = current_memento;
+        // if (max_memento <= target_memento)
+        //     return max_memento;
+        if (next_memento > right_memento || current_memento < left_memento)
+            return;
+        if (current_memento <= right_memento)
+            candidateMementos[(*candidateMementosSize)++] = current_memento;
+        if (next_memento >= left_memento)   
+            candidateMementos[(*candidateMementosSize)++] = next_memento;
+        pos += 2;
+        const uint64_t max_memento_value = (1ULL << qf->metadata->memento_bits) - 1;
+        uint64_t current_slot = get_slot(qf, pos);
+        uint64_t mementos_left = (current_slot & BITMASK(qf->metadata->memento_bits));
+        current_slot >>= qf->metadata->memento_bits;
+        uint32_t current_full_bits = qf->metadata->bits_per_slot - qf->metadata->memento_bits;
+
+        // Check for an extended memento counter
+        if (mementos_left == max_memento_value) {
+            // Rarely every executes, as slot counts rarely exceed the maximum
+            // value that a memento can hold
+            uint64_t length = 2, pw = 1;
+            mementos_left = 0;
+            pos++;
+            while (length > 0) {
+                if (current_full_bits < qf->metadata->memento_bits) {
+                    current_slot |= get_slot(qf, pos) << current_full_bits;
+                    current_full_bits += qf->metadata->bits_per_slot;
+                    pos++;
+                }
+                uint64_t current_part = current_slot & max_memento_value;
+                if (current_part == max_memento_value) {
+                    length++;
+                }
+                else {
+                    mementos_left += pw * current_part;
+                    pw *= max_memento_value;
+                    length--;
+                }
+                current_slot >>= qf->metadata->memento_bits;
+                current_full_bits -= qf->metadata->memento_bits;
+            }
+        }
+
+        do {
+            if (current_full_bits < qf->metadata->memento_bits) {
+                pos++;
+                current_slot |= get_slot(qf, pos) << current_full_bits;
+                current_full_bits += qf->metadata->bits_per_slot;
+            }
+            current_memento = current_slot & BITMASK(qf->metadata->memento_bits);
+            current_slot >>= qf->metadata->memento_bits;
+            current_full_bits -= qf->metadata->memento_bits;
+            if (left_memento <= current_memento && current_memento <= right_memento)
+                // return current_memento;
+                candidateMementos[(*candidateMementosSize)++] = current_memento;
+             if (current_memento > right_memento)
+                return;
+            mementos_left--;
+        } while (mementos_left);
+        return;
+    }
+}
+
 int qf_point_query(const QF *qf, uint64_t key, uint64_t memento, uint8_t flags)     // NEW IN MEMENTO
 {
 	if (GET_KEY_HASH(flags) != QF_KEY_IS_HASH) {
@@ -4288,6 +4370,366 @@ int qf_range_query_fp_learning2(const QF *qf, uint64_t l_key, uint64_t l_memento
         }
 
         return false;
+    }
+}
+
+// return all potential positove
+int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento,
+                                  uint64_t r_key, uint64_t r_memento, uint8_t flags,
+                                  uint64_t *fp_keys, uint64_t *fp_keys_size)    // NEW: 添加输出参数
+                                      // NEW IN SELF
+{
+    int ret = 0;
+    const uint64_t max_memento_value = (1ULL << qf->metadata->memento_bits) - 1;
+    const uint64_t orig_l_key = l_key;
+    const uint64_t orig_r_key = r_key;
+	if (GET_KEY_HASH(flags) != QF_KEY_IS_HASH) {
+		if (qf->metadata->hash_mode == QF_HASH_DEFAULT) {
+			l_key = MurmurHash64A(((void *) &l_key), sizeof(l_key), qf->metadata->seed);
+			r_key = MurmurHash64A(((void *) &r_key), sizeof(r_key), qf->metadata->seed);
+        }
+		else if (qf->metadata->hash_mode == QF_HASH_INVERTIBLE) {
+			l_key = hash_64(l_key, BITMASK(63));
+			r_key = hash_64(r_key, BITMASK(63));
+        }
+	}
+    const uint32_t bucket_index_hash_size = qf->metadata->key_bits - \
+                                            qf->metadata->fingerprint_bits;
+    const uint32_t orig_quotient_size = qf->metadata->original_quotient_bits;
+    const uint64_t orig_nslots = qf->metadata->nslots >> (qf->metadata->key_bits 
+                                                        - qf->metadata->fingerprint_bits 
+                                                        - qf->metadata->original_quotient_bits);
+
+    // const uint64_t prefixMask = 0xFFFFFFFFFFFFFFFFULL ^ BITMASK(qf->metadata->memento_bits);
+
+	const uint64_t l_hash = l_key;
+    const uint64_t l_fast_reduced_part = fast_reduce(((l_hash & BITMASK(qf->metadata->original_quotient_bits)) 
+                                << (32 - qf->metadata->original_quotient_bits)), orig_nslots);
+	const uint64_t l_hash_bucket_index = (l_fast_reduced_part << (bucket_index_hash_size - orig_quotient_size))
+                        | ((l_hash >> orig_quotient_size) & BITMASK(bucket_index_hash_size - orig_quotient_size));
+	const uint64_t l_hash_fingerprint = (l_hash >> bucket_index_hash_size) & BITMASK(qf->metadata->fingerprint_bits);
+
+	const uint64_t r_hash = r_key;
+    const uint64_t r_fast_reduced_part = fast_reduce(((r_hash & BITMASK(qf->metadata->original_quotient_bits)) 
+                                << (32 - qf->metadata->original_quotient_bits)), orig_nslots);
+	const uint64_t r_hash_bucket_index = (r_fast_reduced_part << (bucket_index_hash_size - orig_quotient_size))
+                        | ((r_hash >> orig_quotient_size) & BITMASK(bucket_index_hash_size - orig_quotient_size));
+	const uint64_t r_hash_fingerprint = (r_hash >> bucket_index_hash_size) & BITMASK(qf->metadata->fingerprint_bits);
+
+    uint64_t candidate_memento;
+    if (l_hash == r_hash) { // Range contained in a single prefix.
+#ifdef DEBUG
+        perror("RANGE QUERY: SINGLE PREFIX");
+#endif /* DEBUG */
+        if (!is_occupied(qf, l_hash_bucket_index)) {
+            return 0;
+        }
+
+        int64_t runstart_index = l_hash_bucket_index == 0 ? 0 
+            : run_end(qf, l_hash_bucket_index - 1) + 1;
+        if (runstart_index < l_hash_bucket_index)
+            runstart_index = l_hash_bucket_index;
+
+        // Find the shortest matching fingerprint that gives a positive
+        int64_t fingerprint_pos = runstart_index;
+        while (true) {
+            fingerprint_pos = next_matching_fingerprint_in_run(qf, fingerprint_pos,
+                                                            l_hash_fingerprint);
+            if (fingerprint_pos < 0) {
+                // Matching fingerprints exhausted
+                break;
+            }
+
+            const uint64_t current_fingerprint = GET_FINGERPRINT(qf, fingerprint_pos);
+            const uint64_t next_fingerprint = GET_FINGERPRINT(qf, fingerprint_pos + 1);
+            // const int positive_res = (highbit_position(current_fingerprint) == qf->metadata->fingerprint_bits 
+            //                             ? 1 : 2);
+            if (!is_runend(qf, fingerprint_pos) && 
+                    current_fingerprint > next_fingerprint) {
+                uint64_t* candidateMementos = (uint64_t*)malloc((r_memento - l_memento + 1) * sizeof(uint64_t));
+                uint64_t candidateMementosSize = 0;
+                // candidate_memento = lower_bound_mementos_for_fingerprint(qf, 
+                //                                     fingerprint_pos, l_memento);
+                all_mementos_for_fingerprint(qf, fingerprint_pos, l_memento, r_memento, candidateMementos, &candidateMementosSize);
+                for (uint64_t i = 0; i < candidateMementosSize; i++) {
+                    uint64_t candidate_key = candidateMementos[i] | (orig_l_key << qf->metadata->memento_bits);
+                    fp_keys[*fp_keys_size] = candidate_key;
+                    (*fp_keys_size)++;
+                    ret = true;
+                }
+                free(candidateMementos);
+                // if (l_memento <= candidate_memento && candidate_memento <= r_memento) 
+                // {
+                //     uint64_t candidate_key = candidate_memento | (orig_l_key << qf->metadata->memento_bits);
+                //     fp_keys[*fp_keys_size] = candidate_key;
+                //     (*fp_keys_size)++;
+                //     ret = positive_res;
+                // }
+                 
+
+                const uint64_t m1 = GET_MEMENTO(qf, fingerprint_pos);
+                const uint64_t m2 = GET_MEMENTO(qf, fingerprint_pos + 1);
+                fingerprint_pos += 2;
+                if (m1 >= m2)
+                    fingerprint_pos += number_of_slots_used_for_memento_list(qf,
+                                                                fingerprint_pos);
+            }
+            else {
+                candidate_memento = GET_MEMENTO(qf, fingerprint_pos);
+                if (l_memento <= candidate_memento && candidate_memento <= r_memento)
+                {
+                    uint64_t candidate_key =  candidate_memento | (orig_l_key << qf->metadata->memento_bits);
+                    fp_keys[*fp_keys_size] = candidate_key;
+                    (*fp_keys_size)++;
+                    ret = true;
+                }
+                fingerprint_pos++;
+            }
+
+            if (is_runend(qf, fingerprint_pos - 1))
+                break;
+        }
+        if (!ret) return 0;
+    }
+    else {  // Range intersects two prefixes
+#ifdef DEBUG
+        perror("RANGE QUERY: TWO PREFIX");
+#endif /* DEBUG */
+        uint64_t l_runstart_index, r_runstart_index;
+        if (!is_occupied(qf, l_hash_bucket_index))
+            l_runstart_index = qf->metadata->xnslots + 100;
+        else {
+            l_runstart_index = l_hash_bucket_index == 0 ? 0 
+                : run_end(qf, l_hash_bucket_index - 1) + 1;
+            if (l_runstart_index < l_hash_bucket_index)
+                l_runstart_index = l_hash_bucket_index;
+        }
+        if (!is_occupied(qf, r_hash_bucket_index))
+            r_runstart_index = qf->metadata->xnslots + 100;
+        else {
+            r_runstart_index = r_hash_bucket_index == 0 ? 0 
+                : run_end(qf, r_hash_bucket_index - 1) + 1;
+            if (r_runstart_index < r_hash_bucket_index)
+                r_runstart_index = r_hash_bucket_index;
+        }
+
+        // Check the left prefix
+        if (l_runstart_index < qf->metadata->xnslots) {
+            // Find the shortest matching fingerprint that gives a positive
+            int64_t fingerprint_pos = l_runstart_index;
+            while (true) {
+                fingerprint_pos = next_matching_fingerprint_in_run(qf, fingerprint_pos,
+                                                                l_hash_fingerprint);
+                if (fingerprint_pos < 0) {
+                    // Matching fingerprints exhausted
+                    break;
+                }
+
+                const uint64_t current_fingerprint = GET_FINGERPRINT(qf, fingerprint_pos);
+                const uint64_t next_fingerprint = GET_FINGERPRINT(qf, fingerprint_pos + 1);
+                // const int positive_res = (highbit_position(current_fingerprint) == qf->metadata->fingerprint_bits 
+                //                             ? 1 : 2);
+                if (!is_runend(qf, fingerprint_pos) && 
+                        current_fingerprint > next_fingerprint) {
+                    uint64_t m1 = GET_MEMENTO(qf, fingerprint_pos);
+                    uint64_t m2 = GET_MEMENTO(qf, fingerprint_pos + 1);
+
+                    bool has_sorted_list = m1 >= m2;
+                    // if (has_sorted_list && l_memento <= m1)
+                    // {
+                    //     uint64_t candidate_key =  m1 | (orig_l_key << qf->metadata->memento_bits);
+                    //     fp_keys[*fp_keys_size] = candidate_key;
+                    //     (*fp_keys_size)++;
+                    //     ret = positive_res;
+                    // }
+                    // if (!has_sorted_list && l_memento <= m2)
+                    // {
+                    //     uint64_t candidate_key =  m2 | (orig_l_key << qf->metadata->memento_bits);
+                    //     fp_keys[*fp_keys_size] = candidate_key;
+                    //     (*fp_keys_size)++;
+                    //     ret = positive_res;
+                    // }
+                    uint64_t* candidateMementos = (uint64_t*)malloc((max_memento_value - l_memento + 1) * sizeof(uint64_t));
+                    uint64_t candidateMementosSize = 0;
+                    all_mementos_for_fingerprint(qf, fingerprint_pos, l_memento, max_memento_value, candidateMementos, &candidateMementosSize);
+                    for (uint64_t i = 0; i < candidateMementosSize; i++) {
+                        uint64_t candidate_key = candidateMementos[i] | (orig_l_key << qf->metadata->memento_bits);
+                        fp_keys[*fp_keys_size] = candidate_key;
+                        (*fp_keys_size)++;
+                        ret = true;
+                    }
+                    free(candidateMementos);
+                    fingerprint_pos += 2;
+                    if (has_sorted_list)
+                        fingerprint_pos += number_of_slots_used_for_memento_list(qf,
+                                                                    fingerprint_pos);
+                }
+                else {
+                    if (l_memento <= GET_MEMENTO(qf, fingerprint_pos))
+                    {
+                        uint64_t candidate_key =  GET_MEMENTO(qf, fingerprint_pos) | (orig_l_key << qf->metadata->memento_bits);
+                        fp_keys[*fp_keys_size] = candidate_key;
+                        (*fp_keys_size)++;
+                        ret = true; 
+                    }
+                    fingerprint_pos++;
+                }
+
+                if (is_runend(qf, fingerprint_pos - 1))
+                    break;
+            }
+        }
+
+        // Check middle prefixes, if they exist
+        for (uint64_t mid_key = orig_l_key + 1; mid_key < orig_r_key; mid_key++) {
+            uint64_t mid_hash = mid_key;
+            if (GET_KEY_HASH(flags) != QF_KEY_IS_HASH) {
+                if (qf->metadata->hash_mode == QF_HASH_DEFAULT) {
+                    mid_hash = MurmurHash64A(((void *) &mid_hash), sizeof(mid_hash), qf->metadata->seed);
+                }
+                else if (qf->metadata->hash_mode == QF_HASH_INVERTIBLE) {
+                    mid_hash = hash_64(mid_hash, BITMASK(63));
+                }
+            }
+            const uint64_t mid_fast_reduced_part = fast_reduce(((mid_hash & BITMASK(qf->metadata->original_quotient_bits)) 
+                        << (32 - qf->metadata->original_quotient_bits)), orig_nslots);
+            const uint64_t mid_hash_bucket_index = (mid_fast_reduced_part << (bucket_index_hash_size - orig_quotient_size))
+                | ((mid_hash >> orig_quotient_size) & BITMASK(bucket_index_hash_size - orig_quotient_size));
+            const uint64_t mid_hash_fingerprint = (mid_hash >> bucket_index_hash_size) & BITMASK(qf->metadata->fingerprint_bits);
+
+            if (!is_occupied(qf, mid_hash_bucket_index))
+                continue;
+            uint64_t mid_runstart_index = mid_hash_bucket_index == 0 ? 0 
+                : run_end(qf, mid_hash_bucket_index - 1) + 1;
+            if (mid_runstart_index < mid_hash_bucket_index)
+                mid_runstart_index = mid_hash_bucket_index;
+
+            // Check the current middle prefix
+            if (mid_runstart_index < qf->metadata->xnslots) {
+                // // Find a matching fingerprint
+                // int64_t fingerprint_pos = next_matching_fingerprint_in_run(qf, mid_runstart_index, mid_hash_fingerprint);
+                // if (fingerprint_pos >= 0) {
+                //     // A matching fingerprint exists
+                //     uint64_t candidate_key =  mid_key << qf->metadata->memento_bits;
+                //     fp_keys[*fp_keys_size] = candidate_key;
+                //     (*fp_keys_size)++;
+                //     ret = true;
+                // }
+                // Find the shortest matching fingerprint that gives a positive
+                int64_t fingerprint_pos = mid_runstart_index;
+                while (true) {
+                    fingerprint_pos = next_matching_fingerprint_in_run(qf, fingerprint_pos,
+                                                                    mid_hash_fingerprint);
+                    if (fingerprint_pos < 0) {
+                        // Matching fingerprints exhausted
+                        break;
+                    }
+                    const uint64_t current_fingerprint = GET_FINGERPRINT(qf, fingerprint_pos);
+                    const uint64_t next_fingerprint = GET_FINGERPRINT(qf, fingerprint_pos + 1);
+                    if (!is_runend(qf, fingerprint_pos) && 
+                            current_fingerprint > next_fingerprint) {
+                        uint64_t* candidateMementos = (uint64_t*)malloc((max_memento_value + 1) * sizeof(uint64_t));
+                        uint64_t candidateMementosSize = 0;
+                        all_mementos_for_fingerprint(qf, fingerprint_pos, 0, max_memento_value, candidateMementos, &candidateMementosSize);
+                        for (uint64_t i = 0; i < candidateMementosSize; i++) {
+                            uint64_t candidate_key = candidateMementos[i] | (orig_l_key << qf->metadata->memento_bits);
+                            fp_keys[*fp_keys_size] = candidate_key;
+                            (*fp_keys_size)++;
+                            ret = true;
+                        }
+                        free(candidateMementos);
+                        const uint64_t m1 = GET_MEMENTO(qf, fingerprint_pos);
+                        const uint64_t m2 = GET_MEMENTO(qf, fingerprint_pos + 1);
+                        fingerprint_pos += 2;
+                        if (m1 >= m2)
+                            fingerprint_pos += number_of_slots_used_for_memento_list(qf,
+                                                                        fingerprint_pos);
+                    }
+                    else {
+                        candidate_memento = GET_MEMENTO(qf, fingerprint_pos);
+                        if (l_memento <= candidate_memento && candidate_memento <= r_memento)
+                        {
+                            uint64_t candidate_key =  candidate_memento | (orig_l_key << qf->metadata->memento_bits);
+                            fp_keys[*fp_keys_size] = candidate_key;
+                            (*fp_keys_size)++;
+                            ret = true;
+                        }
+                        fingerprint_pos++;
+                    }
+
+                    if (is_runend(qf, fingerprint_pos - 1))
+                        break;
+                }
+            }
+        }
+
+        // Check the right prefix
+        if (r_runstart_index < qf->metadata->xnslots) {
+            // Find the shortest matching fingerprint that gives a positive
+            int64_t fingerprint_pos = r_runstart_index;
+            while (true) {
+                fingerprint_pos = next_matching_fingerprint_in_run(qf, fingerprint_pos,
+                                                                r_hash_fingerprint);
+                if (fingerprint_pos < 0) {
+                    // Matching fingerprints exhausted
+                    break;
+                }
+
+                const uint64_t current_fingerprint = GET_FINGERPRINT(qf, fingerprint_pos);
+                const uint64_t next_fingerprint = GET_FINGERPRINT(qf, fingerprint_pos + 1);
+                // const int positive_res = (highbit_position(current_fingerprint) == qf->metadata->fingerprint_bits 
+                //                             ? 1 : 2);
+                if (!is_runend(qf, fingerprint_pos) && 
+                        current_fingerprint > next_fingerprint) {
+                    uint64_t m1 = GET_MEMENTO(qf, fingerprint_pos);
+                    uint64_t m2 = GET_MEMENTO(qf, fingerprint_pos + 1);
+                    bool has_sorted_list = m1 >= m2;
+                    // if (has_sorted_list && m2 <= r_memento)
+                    // {
+                    //     uint64_t candidate_key =  m2 | (orig_r_key << qf->metadata->memento_bits);
+                    //     fp_keys[*fp_keys_size] = candidate_key;
+                    //     (*fp_keys_size)++;
+                    //     ret = positive_res;
+                    // }
+                    // if (!has_sorted_list && m1 <= r_memento) 
+                    // {
+                    //     uint64_t candidate_key =  m1 | (orig_r_key << qf->metadata->memento_bits);
+                    //     fp_keys[*fp_keys_size] = candidate_key;
+                    //     (*fp_keys_size)++;
+                    //     ret = positive_res;
+                    // }
+                    uint64_t* candidateMementos = (uint64_t*)malloc((r_memento + 1) * sizeof(uint64_t));
+                    uint64_t candidateMementosSize = 0;
+                    all_mementos_for_fingerprint(qf, fingerprint_pos, 0, r_memento, candidateMementos, &candidateMementosSize);
+                    for (uint64_t i = 0; i < candidateMementosSize; i++) {
+                        uint64_t candidate_key = candidateMementos[i] | (orig_l_key << qf->metadata->memento_bits);
+                        fp_keys[*fp_keys_size] = candidate_key;
+                        (*fp_keys_size)++;
+                        ret = true;
+                    }
+                    free(candidateMementos);
+                    fingerprint_pos += 2;
+                    if (has_sorted_list)
+                        fingerprint_pos += number_of_slots_used_for_memento_list(qf,
+                                                                    fingerprint_pos);
+                }
+                else {
+                    if (GET_MEMENTO(qf, fingerprint_pos) <= r_memento)
+                    {
+                        uint64_t candidate_key =  GET_MEMENTO(qf, fingerprint_pos) | (orig_r_key << qf->metadata->memento_bits);
+                        fp_keys[*fp_keys_size] = candidate_key;
+                        (*fp_keys_size)++;
+                        ret = true;
+                    }
+                    fingerprint_pos++;
+                }
+
+                if (is_runend(qf, fingerprint_pos - 1))
+                    break;
+            }
+        }
+
+        return ret;
     }
 }
 
