@@ -3077,8 +3077,8 @@ __attribute__((always_inline))
 static inline void all_mementos_for_fingerprint(const QF *qf, uint64_t pos, 
     uint64_t left_memento, uint64_t right_memento, uint64_t *candidateMementos, uint64_t *candidateMementosSize)    // NEW IN self
 {
-    uint64_t maxCandidateMementosSize = *candidateMementosSize;
-    *candidateMementosSize = 0;
+    // uint64_t maxCandidateMementosSize = *candidateMementosSize;
+    // *candidateMementosSize = 0;
     uint64_t current_memento = GET_MEMENTO(qf, pos);
     uint64_t next_memento = GET_MEMENTO(qf, pos + 1);
     if (current_memento < next_memento) {
@@ -3115,7 +3115,7 @@ static inline void all_mementos_for_fingerprint(const QF *qf, uint64_t pos,
             // }
             // candidateMementos[next_memento-left_memento] = 2;
         }
-
+        return;
     }
     else {
         // // Mementos encoded as a sorted list
@@ -3152,6 +3152,10 @@ static inline void all_mementos_for_fingerprint(const QF *qf, uint64_t pos,
             // }
             // candidateMementos[next_memento-left_memento] = 2;
         }
+        if (current_memento == next_memento)
+            return;
+        // if (current_memento == left_memento || next_memento == right_memento || current_memento == next_memento)
+        //     return;
         pos += 2;
         const uint64_t max_memento_value = (1ULL << qf->metadata->memento_bits) - 1;
         uint64_t current_slot = get_slot(qf, pos);
@@ -3185,7 +3189,8 @@ static inline void all_mementos_for_fingerprint(const QF *qf, uint64_t pos,
                 current_full_bits -= qf->metadata->memento_bits;
             }
         }
-
+        uint64_t pre = 0, current_memento_print = current_memento, 
+                 next_memento_print = next_memento;
         do {
             if (current_full_bits < qf->metadata->memento_bits) {
                 pos++;
@@ -3193,39 +3198,55 @@ static inline void all_mementos_for_fingerprint(const QF *qf, uint64_t pos,
                 current_full_bits += qf->metadata->bits_per_slot;
             }
             current_memento = current_slot & BITMASK(qf->metadata->memento_bits);
+            // if (current_memento < pre) {
+            //     // Corrupted data
+            //     fprintf(stderr, "Error: Corrupted memento list in lower_bound_mementos_for_fingerprint!\n");
+            //     fprintf(stderr, "Current memento: %lu, Next memento: %lu\n", current_memento_print, next_memento_print);
+            //     fprintf(stderr, "Left memento: %lu, Right memento: %lu\n", left_memento, right_memento);
+            //     fprintf(stderr, "mementos_left: %lu\n", mementos_left);
+            //     for (int i = 0; i < *candidateMementosSize; i++)
+            //         fprintf(stderr, "Candidate memento %d: %lu\n", i, candidateMementos[i]);
+            //     abort();
+            // }
+            if (current_memento > right_memento)
+                return;
             current_slot >>= qf->metadata->memento_bits;
             current_full_bits -= qf->metadata->memento_bits;
-            if (left_memento <= current_memento && current_memento <= right_memento) {
-                // return current_memento;
-                if (*candidateMementosSize >= maxCandidateMementosSize) 
-                    return;
-                // if (*candidateMementosSize >= maxCandidateMementosSize) {
-                //     fprintf(stderr, "Error: candidateMementos array too small in all_mementos_for_fingerprint!\nLine = %d\n", __LINE__);
-                //     fprintf(stderr, "************ Current size: %d, Max size: %d\n", *candidateMementosSize, maxCandidateMementosSize);
-                //     fprintf(stderr, "Left memento: %lu, Right memento: %lu\n", left_memento, right_memento);
-                //     fprintf(stderr, "Current memento: %lu\n", current_memento);
-                //     for (int i = 0; i < *candidateMementosSize; i++)
-                //         fprintf(stderr, "Candidate memento %d: %lu\n", i, candidateMementos[i]);
-                //     abort();
-                // }
-                bool already_present = false;
-                for (uint64_t i = 0; i < *candidateMementosSize; i++) {
-                    if (candidateMementos[i] == current_memento) {
-                        // Already present
-                        already_present = true;
-                        break;
-                    }
-                }
-                if (!already_present) {
-                    candidateMementos[(*candidateMementosSize)++] = current_memento;
-                }
-                // if (current_memento-left_memento >= maxCandidateMementosSize) {
-                //     fprintf(stderr, "Error: candidateMementos array too small in all_mementos_for_fingerprint!\nLine = %d\n", __LINE__);
-                //     abort();
-                // }
-                // candidateMementos[current_memento-left_memento] = 2;
-            //     fprintf(stderr, "1Candidate memento %d: %lu\n", 0, candidateMementos[0]);
+            // if (left_memento <= current_memento && current_memento <= right_memento) {
+            //     // return current_memento;
+            //     if (*candidateMementosSize >= maxCandidateMementosSize) 
+            //         return;
+            //     // if (*candidateMementosSize >= maxCandidateMementosSize) {
+            //     //     fprintf(stderr, "Error: candidateMementos array too small in all_mementos_for_fingerprint!\nLine = %d\n", __LINE__);
+            //     //     fprintf(stderr, "************ Current size: %d, Max size: %d\n", *candidateMementosSize, maxCandidateMementosSize);
+            //     //     fprintf(stderr, "Left memento: %lu, Right memento: %lu\n", left_memento, right_memento);
+            //     //     fprintf(stderr, "Current memento: %lu\n", current_memento);
+            //     //     for (int i = 0; i < *candidateMementosSize; i++)
+            //     //         fprintf(stderr, "Candidate memento %d: %lu\n", i, candidateMementos[i]);
+            //     //     abort();
+            //     // }
+            //     bool already_present = false;
+            //     for (uint64_t i = 0; i < *candidateMementosSize; i++) {
+            //         if (candidateMementos[i] == current_memento) {
+            //             // Already present
+            //             already_present = true;
+            //             break;
+            //         }
+            //     }
+            //     if (!already_present) {
+            //         candidateMementos[(*candidateMementosSize)++] = current_memento;
+            //     }
+            //     // if (current_memento-left_memento >= maxCandidateMementosSize) {
+            //     //     fprintf(stderr, "Error: candidateMementos array too small in all_mementos_for_fingerprint!\nLine = %d\n", __LINE__);
+            //     //     abort();
+            //     // }
+            //     // candidateMementos[current_memento-left_memento] = 2;
+            // //     fprintf(stderr, "1Candidate memento %d: %lu\n", 0, candidateMementos[0]);
+            // }
+            if (current_memento >= left_memento && current_memento != pre) {
+                candidateMementos[(*candidateMementosSize)++] = current_memento;
             }
+            pre = current_memento;
             // if (current_memento > right_memento)
             //     return;
             mementos_left--;
@@ -4460,8 +4481,8 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                                       // NEW IN SELF
 {
     int ret = 0;
-    uint64_t max_fp_keys_size = *fp_keys_size;
-    *fp_keys_size = 0;
+    // uint64_t max_fp_keys_size = *fp_keys_size;
+    // *fp_keys_size = 0;
     const uint64_t max_memento_value = (1ULL << qf->metadata->memento_bits) - 1;
     const uint64_t orig_l_key = l_key;
     const uint64_t orig_r_key = r_key;
@@ -4531,7 +4552,7 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                 
                 uint64_t* candidateMementos = (uint64_t*)malloc((r_memento - l_memento + 1) * sizeof(uint64_t));
                 // memset(candidateMementos, 0, (r_memento - l_memento + 1) * sizeof(uint64_t));
-                uint64_t candidateMementosSize = r_memento - l_memento + 1;
+                uint64_t candidateMementosSize = 0;
                 // candidate_memento = lower_bound_mementos_for_fingerprint(qf, 
                 //                                     fingerprint_pos, l_memento);
                 all_mementos_for_fingerprint(qf, fingerprint_pos, l_memento, r_memento, candidateMementos, &candidateMementosSize);
@@ -4543,10 +4564,10 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                     // } else {
                     //     continue;
                     // }
-                    if (*fp_keys_size >= max_fp_keys_size) {
-                        fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
-                        abort();
-                    }
+                    // if (*fp_keys_size >= max_fp_keys_size) {
+                    //     fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
+                    //     abort();
+                    // }
                     fp_keys[*fp_keys_size] = candidate_key;
                     (*fp_keys_size)++;
                     ret = true;
@@ -4573,10 +4594,10 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                 if (l_memento <= candidate_memento && candidate_memento <= r_memento)
                 {
                     uint64_t candidate_key =  candidate_memento | (orig_l_key << qf->metadata->memento_bits);
-                    if (*fp_keys_size >= max_fp_keys_size) {
-                        fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
-                        abort();
-                    }
+                    // if (*fp_keys_size >= max_fp_keys_size) {
+                    //     fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
+                    //     abort();
+                    // }
                     fp_keys[*fp_keys_size] = candidate_key;
                     (*fp_keys_size)++;
                     ret = true;
@@ -4649,7 +4670,7 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                     // }
                     uint64_t* candidateMementos = (uint64_t*)malloc((max_memento_value - l_memento + 1) * sizeof(uint64_t));
                     // memset(candidateMementos, 0, (max_memento_value - l_memento + 1) * sizeof(uint64_t));
-                    uint64_t candidateMementosSize = max_memento_value - l_memento + 1;
+                    uint64_t candidateMementosSize = 0;
                     all_mementos_for_fingerprint(qf, fingerprint_pos, l_memento, max_memento_value, candidateMementos, &candidateMementosSize);
                     for (uint64_t i = 0; i < candidateMementosSize; i++) {
                         uint64_t candidate_key = candidateMementos[i] | (orig_l_key << qf->metadata->memento_bits);
@@ -4659,10 +4680,10 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                         // } else {
                         //     continue;
                         // }
-                        if (*fp_keys_size >= max_fp_keys_size) {
-                            fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
-                            abort();
-                        }
+                        // if (*fp_keys_size >= max_fp_keys_size) {
+                        //     fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
+                        //     abort();
+                        // }
                         fp_keys[*fp_keys_size] = candidate_key;
                         (*fp_keys_size)++;
                         ret = true;
@@ -4677,10 +4698,10 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                     if (l_memento <= GET_MEMENTO(qf, fingerprint_pos))
                     {
                         uint64_t candidate_key =  GET_MEMENTO(qf, fingerprint_pos) | (orig_l_key << qf->metadata->memento_bits);
-                        if (*fp_keys_size >= max_fp_keys_size) {
-                            fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
-                            abort();
-                        }
+                        // if (*fp_keys_size >= max_fp_keys_size) {
+                        //     fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
+                        //     abort();
+                        // }
                         fp_keys[*fp_keys_size] = candidate_key;
                         (*fp_keys_size)++;
                         ret = true; 
@@ -4743,7 +4764,7 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                             current_fingerprint > next_fingerprint) {
                         uint64_t* candidateMementos = (uint64_t*)malloc((max_memento_value + 1) * sizeof(uint64_t));
                         // memset(candidateMementos, 0, (max_memento_value + 1) * sizeof(uint64_t));
-                        uint64_t candidateMementosSize = max_memento_value + 1;
+                        uint64_t candidateMementosSize = 0;
                         all_mementos_for_fingerprint(qf, fingerprint_pos, 0, max_memento_value, candidateMementos, &candidateMementosSize);
                         for (uint64_t i = 0; i < candidateMementosSize; i++) {
                             uint64_t candidate_key = candidateMementos[i] | (orig_l_key << qf->metadata->memento_bits);
@@ -4753,10 +4774,10 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                             // } else {
                             //     continue;
                             // }
-                            if (*fp_keys_size >= max_fp_keys_size) {
-                                fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
-                                abort();
-                            }
+                            // if (*fp_keys_size >= max_fp_keys_size) {
+                            //     fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
+                            //     abort();
+                            // }
                             fp_keys[*fp_keys_size] = candidate_key;
                             (*fp_keys_size)++;
                             ret = true;
@@ -4774,10 +4795,10 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                         if (l_memento <= candidate_memento && candidate_memento <= r_memento)
                         {
                             uint64_t candidate_key =  candidate_memento | (orig_l_key << qf->metadata->memento_bits);
-                            if (*fp_keys_size >= max_fp_keys_size) {
-                                fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
-                                abort();
-                            }
+                            // if (*fp_keys_size >= max_fp_keys_size) {
+                            //     fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
+                            //     abort();
+                            // }
                             fp_keys[*fp_keys_size] = candidate_key;
                             (*fp_keys_size)++;
                             ret = true;
@@ -4828,7 +4849,7 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                     // }
                     uint64_t* candidateMementos = (uint64_t*)malloc((r_memento + 1) * sizeof(uint64_t));
                     // memset(candidateMementos, 0, (r_memento + 1) * sizeof(uint64_t));
-                    uint64_t candidateMementosSize = r_memento + 1;
+                    uint64_t candidateMementosSize = 0;
                     all_mementos_for_fingerprint(qf, fingerprint_pos, 0, r_memento, candidateMementos, &candidateMementosSize);
                     for (uint64_t i = 0; i < candidateMementosSize; i++) {
                         uint64_t candidate_key = candidateMementos[i] | (orig_l_key << qf->metadata->memento_bits);
@@ -4838,10 +4859,10 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                         // } else {
                         //     continue;
                         // }
-                        if (*fp_keys_size >= max_fp_keys_size) {
-                            fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
-                            abort();
-                        }
+                        // if (*fp_keys_size >= max_fp_keys_size) {
+                        //     fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
+                        //     abort();
+                        // }
                         fp_keys[*fp_keys_size] = candidate_key;
                         (*fp_keys_size)++;
                         ret = true;
@@ -4856,10 +4877,10 @@ int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento
                     if (GET_MEMENTO(qf, fingerprint_pos) <= r_memento)
                     {
                         uint64_t candidate_key =  GET_MEMENTO(qf, fingerprint_pos) | (orig_r_key << qf->metadata->memento_bits);
-                        if (*fp_keys_size >= max_fp_keys_size) {
-                            fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
-                            abort();
-                        }
+                        // if (*fp_keys_size >= max_fp_keys_size) {
+                        //     fprintf(stderr, "Error: fp_keys_size exceeded maximum capacity at line %d\n", __LINE__);
+                        //     abort();
+                        // }
                         fp_keys[*fp_keys_size] = candidate_key;
                         (*fp_keys_size)++;
                         ret = true;

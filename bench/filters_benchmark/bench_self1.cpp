@@ -257,7 +257,7 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
             }
         } else {
             uint64_t* fp_keys = new uint64_t[right - left + 1];
-            uint64_t fp_keys_size = right - left + 1;
+            uint64_t fp_keys_size = 0;
             query_result = qf_range_query_fp_learning4(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK, fp_keys, &fp_keys_size);
             if (query_result) {
                 // Check each FP key individually with AdaPerfectCF

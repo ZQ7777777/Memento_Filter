@@ -32,7 +32,8 @@ physcpubind = 16
 # ds_list = ["memento", "grafite", "surf", "rosetta", "snarf", "proteus", "rencoder", "oasis"]
 # ds_list = ["memento", "grafite", "surf", "rosetta", "snarf", "proteus", "rencoder", "oasis","self1","self2","self3","self4"]
 # ds_list = ["memento", "self1", "self2", "self3", "self4"]
-ds_list = ["self1"]
+ds_list = ["memento", "self1", "self4"]
+# ds_list = ["self1", "self4"]
 # ds_list_with_bucketing = ds_list.copy() + ['bucketing']
 memento_sizes_to_test = []
 
