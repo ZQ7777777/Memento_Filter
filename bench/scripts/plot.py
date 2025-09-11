@@ -249,7 +249,7 @@ def plot_fpr():
     # WORKLOADS = [("kuniform", "qcorrelated"),("books")]
     # RANGE_FILTERS = ["memento", "grafite", "surf", "proteus", "snarf", "oasis", "rencoder", "rosetta", "self1", "self2", "self3", "self4"]
     # RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4"]  # 新增
-    RANGE_FILTERS = ["memento", "self1", "self4"]
+    RANGE_FILTERS = ["self1", "self2"] 
     fpr_test_path = f"{base_csv_path}/fpr_test"
     sorted_dirs = sorted(os.listdir(fpr_test_path), reverse=True)
     if len(sorted_dirs) < 1:
@@ -391,7 +391,7 @@ def plot_correlated():
     
     # RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "rsqf", "self1", "self2", "self3", "self4"]
     # RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4", "rsqf"]    
-    RANGE_FILTERS = ["memento", "self1", "self4"]   
+    RANGE_FILTERS = ["self1", "self2"]   
     corr_test_path = f"{base_csv_path}/corr_test"
     sorted_dirs = sorted(os.listdir(corr_test_path), reverse=True)
     if len(sorted_dirs) < 1:
@@ -477,7 +477,7 @@ def plot_qs():
     CORR_DEGREE = 8  # 固定使用 correlation degree = 1.0
     # RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "rsqf", "self1", "self2", "self3", "self4"]
     # RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4", "rsqf"]  
-    RANGE_FILTERS = ["memento", "self1", "self4"]  
+    RANGE_FILTERS = ["self1", "self2"] 
     qs_base_path = f"{base_csv_path}/qs"
     
     # 检查基础目录是否存在

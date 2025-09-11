@@ -159,6 +159,35 @@ class Max64Table {
     return false;
   }
 
+  inline bool FindTagInBuckets_FRAPCF(const size_t i1, const size_t i2,
+                               const size_t tag, const size_t cntSize, const size_t recency) {
+    // const char *p1 = buckets_[i1].bits_;
+    // const char *p2 = buckets_[i2].bits_;
+    size_t tag2 = tag ^ (1ULL << (bits_per_tag-1-cntSize-recency));
+    // std::cout << "tag: " << tag << std::endl;
+    // std::cout << "i1: " << i1 << std::endl;
+    for (size_t j = 0; j < kTagsPerBucket; j++) {
+      size_t curTag = ReadTag(i1, j);
+      if ((curTag & ((1ULL << (bits_per_tag-cntSize-recency)) - 1)) == tag && Read64(i1, j) != kEmptyCell ) {
+        //Add 1 to the ada-counter; Set the recency bit to 1
+        size_t cnt = (curTag >> (bits_per_tag-cntSize-recency)) & ((1ULL << cntSize) - 1);
+        size_t newTag = cnt < (1ULL << cntSize) - 1 ? 
+              (curTag + (1ULL << (bits_per_tag-cntSize-recency))) | (1ULL << (bits_per_tag-recency)) : curTag | (1ULL << (bits_per_tag-recency));
+        WriteTag(i1, j, newTag);
+        return true;
+      }
+      curTag = ReadTag(i2, j);
+      if ((curTag & ((1ULL << (bits_per_tag-cntSize-recency)) - 1)) == tag2 && Read64(i2, j) != kEmptyCell) {
+        size_t cnt = (curTag >> (bits_per_tag-cntSize-recency)) & ((1ULL << cntSize) - 1);
+        size_t newTag = cnt < (1ULL << cntSize) - 1 ? 
+                (curTag + (1ULL << (bits_per_tag-cntSize-recency))) | (1ULL << (bits_per_tag-recency)) : curTag | (1ULL << (bits_per_tag-recency));
+        WriteTag(i2, j, newTag);
+        return true;
+      }
+    }
+    return false;
+  }
+
   inline bool Adp_ADPPCF(const size_t i1, const size_t i2,
                                const size_t tag, const size_t cntSize) {
     // std::cout << "Adp_ADPPCF i1: " <<i1<< std::endl;
@@ -181,6 +210,50 @@ class Max64Table {
       size_t newTag = ReadTag(i1, j) - (1ULL << (bits_per_tag-cntSize));
       WriteTag(i1, j, newTag);
       newTag = ReadTag(i2, j) - (1ULL << (bits_per_tag-cntSize));
+      WriteTag(i2, j, newTag);
+    }
+    return true;
+  }
+    inline bool Adp_FRAPCF(const size_t i1, const size_t i2,
+                               const size_t tag, const size_t cntSize, const size_t recency) {
+    size_t tag2 = tag ^ (1ULL << (bits_per_tag-1-cntSize-recency));
+    size_t start = i1 % kTagsPerBucket;
+    size_t cnt = 0, r = 0, minIndex = -1, minCnt = 0;
+    for (size_t i = 0; i < kTagsPerBucket; i++) {
+      size_t j = (i + start) % kTagsPerBucket;
+      cnt = (ReadTag(i1, j) >> (bits_per_tag-cntSize-recency)) & ((1ULL << cntSize) - 1);
+      r = (ReadTag(i1, j) >> (bits_per_tag-recency));
+      if (r == 0 && cnt <= minCnt) {
+        minCnt = cnt;
+        minIndex = j;
+      }
+      cnt = (ReadTag(i2, j) >> (bits_per_tag-cntSize-recency)) & ((1ULL << cntSize) - 1);
+      r = (ReadTag(i2, j) >> (bits_per_tag-recency));
+      if (r == 0 && cnt <= minCnt) {
+        minCnt = cnt;
+        minIndex = j;
+      }
+      // if (cnt == 0) {
+      //   size_t newTag = tag + (1ULL << (bits_per_tag-cntSize));
+      //   WriteTag(i1, j, newTag);
+      //   return true;
+      // }
+      // if ((ReadTag(i2, j) >> (bits_per_tag-cntSize)) == 0) {
+      //   size_t newTag = tag2 + (1ULL << (bits_per_tag-cntSize));
+      //   WriteTag(i2, j, newTag);
+      //   return true;
+      // }
+    }
+    if (minIndex != -1) {
+      size_t newTag = tag | (1ULL << (bits_per_tag-recency)) | (1ULL << (bits_per_tag-cntSize-recency));
+      WriteTag(i1, minIndex, newTag);
+      return true;
+    } 
+    for (size_t j = 0; j < kTagsPerBucket; j++) {
+      //Reset all r in the bucket to 0
+      size_t newTag = ReadTag(i1, j) & ((1ULL << (bits_per_tag-recency)) - 1);
+      WriteTag(i1, j, newTag);
+      newTag = ReadTag(i2, j) & ((1ULL << (bits_per_tag-recency)) - 1);
       WriteTag(i2, j, newTag);
     }
     return true;

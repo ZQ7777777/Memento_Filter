@@ -14,7 +14,8 @@
 #include "../bench_template.hpp"
 #include "memento.h"
 #include "memento_int.h"
-#include "adaPerfectCF.h"
+// #include "adaPerfectCF.h"
+#include "FRAPerfectCF.h"
 
 #include <unordered_set>
 #include <queue>
@@ -22,7 +23,7 @@
 // Enhanced QF structure with FP cache using adaPerfectCF
 struct QF_Enhanced {
     QF *qf;
-    cuckoofilter::AdaPerfectCF<uint64_t, 64, 3> *fp_cache;
+    cuckoofilter::FRAPerfectCF<uint64_t, 64, 2, 1> *fp_cache;
     double alpha;  // fraction of space for FP cache
     
     QF_Enhanced(QF *filter, double a) : qf(filter), alpha(a) {
@@ -31,7 +32,8 @@ struct QF_Enhanced {
         // alpha *= 10;
         // uint64_t cache_entries = total_space * alpha / 8; // assume 8 bytes per entry for adaPerfectCF
         uint64_t max_space = total_space * alpha;
-        fp_cache = new cuckoofilter::AdaPerfectCF<uint64_t, 64, 3>(max_space);
+        // fp_cache = new cuckoofilter::AdaPerfectCF<uint64_t, 64, 3>(max_space);
+        fp_cache = new cuckoofilter::FRAPerfectCF<uint64_t, 64, 2, 1>(max_space);
         std::cerr << "FP Cache size: " << fp_cache->MaxSize() << " entries" << std::endl;
     }
     
@@ -142,7 +144,7 @@ inline QF_Enhanced *init_self2(const t_itr begin, const t_itr end, const double 
     const uint64_t max_range_size = *std::max_element(query_lengths.begin(), query_lengths.end());
     const double load_factor = 0.95;
 
-    const double alpha = 0.015;  // 10% for FP cache
+    const double alpha = 0.03;  // 10% for FP cache
 
     const double effective_bpk = bpk * (1.0 - alpha);
 
@@ -258,7 +260,7 @@ void experiment_with_fp_learning(InitFun init_f, RangeFun range_f, SizeFun size_
         } else {
             uint64_t* fp_keys = new uint64_t[right - left + 1];
             uint64_t fp_keys_size = 0;
-            query_result = qf_range_query_fp_learning3(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK, fp_keys, &fp_keys_size);
+            query_result = qf_range_query_fp_learning4(f->qf, l_key, l_memento, r_key, r_memento, QF_NO_LOCK, fp_keys, &fp_keys_size);
             if (query_result) {
                 // Check each FP key individually with AdaPerfectCF
                 bool all_in_cache = true;
