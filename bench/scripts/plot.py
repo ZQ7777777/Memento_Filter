@@ -44,8 +44,8 @@ RANGE_FILTERS_STYLE_KWARGS = {"memento": {"marker": '4', "color": "fuchsia", "zo
                               "rosetta": {"marker": 'd', "color": "C4", "label": "Rosetta"},
                               "rencoder": {"marker": '>', "color": "C5", "label": "REncoder"},
                               "rsqf": {"marker": '3', "color": "black", "label": "RSQF"},
-                              "self1": {"marker": 'P', "color": "darkred", "zorder": 12, "label": "PCF_CNT3(ALPHA=0.01)"},
-                              "self2": {"marker": 'p', "color": "dimgray", "zorder": 12, "label": "PCF_CNT3(ALPHA=0.015)"},
+                              "self1": {"marker": 'P', "color": "darkred", "zorder": 12, "label": "APCF_CNT3(ALPHA=0.03)"},
+                              "self2": {"marker": 'p', "color": "dimgray", "zorder": 12, "label": "FRA_F2_R1(ALPHA=0.03)"},
                               "self3": {"marker": 'o', "color": "tan", "zorder": 12, "label": "PCF_CNT3(ALPHA=0.02)"},
                               "self4": {"marker": 'D', "color": "C5", "zorder": 12, "label": "PCF_CNT3(ALPHA=0.03)"},
                               }  # 新增
@@ -247,9 +247,9 @@ def generate_tables(fpr_test_path, fpr_real_test_path, filters, workloads):
 def plot_fpr():
     WORKLOADS = [("kuniform", "qcorrelated"), ("kuniform", "quniform"), ("books"), ("osm")]
     # WORKLOADS = [("kuniform", "qcorrelated"),("books")]
-    # RANGE_FILTERS = ["memento", "grafite", "surf", "proteus", "snarf", "oasis", "rencoder", "rosetta", "self1", "self2", "self3", "self4"]
+    RANGE_FILTERS = ["memento", "grafite", "surf", "proteus", "snarf", "oasis", "rencoder", "rosetta", "self1", "self2", "self4"]
     # RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4"]  # 新增
-    RANGE_FILTERS = ["self1", "self2"] 
+    # RANGE_FILTERS = ["self1", "self2"] 
     fpr_test_path = f"{base_csv_path}/fpr_test"
     sorted_dirs = sorted(os.listdir(fpr_test_path), reverse=True)
     if len(sorted_dirs) < 1:
@@ -269,6 +269,165 @@ def plot_fpr():
         for df in df_list:
             f.write(df.to_latex(index=False))
             f.write("\n\n")
+    # 添加统计分析功能
+    print("\n=== FPR 测试结果统计 (以 Memento 为基准=1) ===")
+    
+    # 为每个工作负载分别收集数据
+    for workload_idx, workload in enumerate(WORKLOADS):
+        if type(workload) is tuple:
+            workload_title = f"{LABELS_NAME[workload[1]]}"
+        else:
+            workload_title = f"{LABELS_NAME[workload]}"
+        
+        print(f"\n=== {workload_title} 工作负载 ===")
+        
+        # 收集当前工作负载的数据
+        values = [collections.defaultdict(list) for _ in range(len(QUERY_RANGE))]
+        time_values = [collections.defaultdict(list) for _ in range(len(QUERY_RANGE))]
+        
+        # 遍历滤波器和查询范围，收集当前工作负载的数据
+        for (ds, r) in itertools.product(RANGE_FILTERS, enumerate(QUERY_RANGE)):
+            (idx, ran) = r
+            try:
+                if type(workload) is tuple:
+                    data = pd.read_csv(get_file(ds, r[1], workload[0], workload[1], path=fpr_test_path))
+                else:
+                    data = pd.read_csv(get_file(ds, r[1], workload, path=fpr_real_test_path))
+                
+                data["fpr_opt"] = data["false_positives"] / data["n_queries"]
+                data["single_query_time"] = (data["query_time"] / data["n_queries"]) * 10**6
+                
+                # 收集 FPR 和查询时间数据
+                for _, row in data.iterrows():
+                    if not np.isnan(row["fpr_opt"]) and not np.isnan(row["single_query_time"]):
+                        values[idx][ds].append(row["fpr_opt"])
+                        time_values[idx][ds].append(row["single_query_time"])
+            except FileNotFoundError:
+                pass
+        
+        # 计算当前工作负载的统计结果
+        for r in range(len(QUERY_RANGE)):
+            print(f"\n{QUERY_RANGE_LABEL[r]}:")
+            print("-" * 50)
+            
+            # 计算平均值
+            avg_fpr = {}
+            avg_time = {}
+            
+            for filter_name in RANGE_FILTERS:
+                if filter_name in values[r] and values[r][filter_name]:
+                    avg_fpr[filter_name] = np.mean(values[r][filter_name])
+                if filter_name in time_values[r] and time_values[r][filter_name]:
+                    avg_time[filter_name] = np.mean(time_values[r][filter_name])
+            
+            # 以 memento 为基准计算比值
+            if "memento" in avg_fpr and "memento" in avg_time:
+                memento_fpr = avg_fpr["memento"]
+                memento_time = avg_time["memento"]
+                
+                print("FPR 比值 (相对于 Memento):")
+                for filter_name in RANGE_FILTERS:
+                    if filter_name in avg_fpr:
+                        ratio = avg_fpr[filter_name] / memento_fpr if memento_fpr > 0 else float('inf')
+                        
+                        # 计算所有比值，然后找出最小和最大比值
+                        valid_fpr = values[r][filter_name]
+                        valid_memento_fpr = values[r]["memento"]
+                        if valid_fpr and valid_memento_fpr and len(valid_fpr) == len(valid_memento_fpr):
+                            all_ratios = [val_f / val_m for val_f, val_m in zip(valid_fpr, valid_memento_fpr) if val_m > 0]
+                            if all_ratios:
+                                min_ratio = min(all_ratios)
+                                max_ratio = max(all_ratios)
+                                print(f"  {filter_name:8}: 平均 {avg_fpr[filter_name]:.2e} ({ratio:.3f}x), 最小比值 ({min_ratio:.8f}x), 最大比值 ({max_ratio:.3f}x)")
+                            else:
+                                print(f"  {filter_name:8}: 平均 {avg_fpr[filter_name]:.2e} ({ratio:.3f}x)")
+                        else:
+                            print(f"  {filter_name:8}: 平均 {avg_fpr[filter_name]:.2e} ({ratio:.3f}x)")
+                
+                print("\n查询时间比值 (相对于 Memento):")
+                for filter_name in RANGE_FILTERS:
+                    if filter_name in avg_time:
+                        ratio = avg_time[filter_name] / memento_time if memento_time > 0 else float('inf')
+                        
+                        # 计算所有比值，然后找出最小和最大比值
+                        valid_time = time_values[r][filter_name]
+                        valid_memento_time = time_values[r]["memento"]
+                        if valid_time and valid_memento_time and len(valid_time) == len(valid_memento_time):
+                            all_ratios = [val_f / val_m for val_f, val_m in zip(valid_time, valid_memento_time) if val_m > 0]
+                            if all_ratios:
+                                min_ratio = min(all_ratios)
+                                max_ratio = max(all_ratios)
+                                print(f"  {filter_name:8}: 平均 {avg_time[filter_name]:.2f} ns ({ratio:.3f}x), 最小比值 ({min_ratio:.3f}x), 最大比值 ({max_ratio:.3f}x)")
+                            else:
+                                print(f"  {filter_name:8}: 平均 {avg_time[filter_name]:.2f} ns ({ratio:.3f}x)")
+                        else:
+                            print(f"  {filter_name:8}: 平均 {avg_time[filter_name]:.2f} ns ({ratio:.3f}x)")
+                
+                # 计算 self1-4 的平均情况
+                self_filters = [f for f in RANGE_FILTERS if f.startswith('self')]
+                if self_filters:
+                    self_fpr_values = [avg_fpr[f] for f in self_filters if f in avg_fpr]
+                    self_time_values = [avg_time[f] for f in self_filters if f in avg_time]
+                    
+                    if self_fpr_values:
+                        avg_self_fpr = np.mean(self_fpr_values)
+                        fpr_ratio = avg_self_fpr / memento_fpr if memento_fpr > 0 else float('inf')
+                        
+                        # 计算 self1-4 所有数据点的比值，然后找出最小和最大比值
+                        all_self_fpr_ratios = []
+                        valid_memento_fpr = values[r]["memento"]
+                        for f in self_filters:
+                            if f in values[r] and values[r][f]:
+                                valid_fpr = values[r][f]
+                                if valid_fpr and valid_memento_fpr and len(valid_fpr) == len(valid_memento_fpr):
+                                    ratios = [val_f / val_m for val_f, val_m in zip(valid_fpr, valid_memento_fpr) if val_m > 0]
+                                    all_self_fpr_ratios.extend(ratios)
+                        
+                        if all_self_fpr_ratios:
+                            min_fpr_ratio = min(all_self_fpr_ratios)
+                            max_fpr_ratio = max(all_self_fpr_ratios)
+                            print(f"\nSelf1-4 FPR 统计:")
+                            print(f"  平均: {avg_self_fpr:.2e} ({fpr_ratio:.3f}x)")
+                            print(f"  最小比值: ({min_fpr_ratio:.3f}x)")
+                            print(f"  最大比值: ({max_fpr_ratio:.3f}x)")
+                        else:
+                            print(f"\nSelf1-4 平均 FPR: {avg_self_fpr:.2e} ({fpr_ratio:.3f}x)")
+                        
+                        # 找到最优（最小）FPR
+                        min_self_fpr = min(self_fpr_values)
+                        min_fpr_ratio = min_self_fpr / memento_fpr if memento_fpr > 0 else float('inf')
+                        min_fpr_filter = [f for f in self_filters if f in avg_fpr and avg_fpr[f] == min_self_fpr][0]
+                        print(f"  最优 FPR: {min_self_fpr:.2e} ({min_fpr_ratio:.3f}x) [{min_fpr_filter}]")
+                    
+                    if self_time_values:
+                        avg_self_time = np.mean(self_time_values)
+                        time_ratio = avg_self_time / memento_time if memento_time > 0 else float('inf')
+                        
+                        # 计算 self1-4 所有数据点的比值，然后找出最小和最大比值
+                        all_self_time_ratios = []
+                        valid_memento_time = time_values[r]["memento"]
+                        for f in self_filters:
+                            if f in time_values[r] and time_values[r][f]:
+                                valid_time = time_values[r][f]
+                                if valid_time and valid_memento_time and len(valid_time) == len(valid_memento_time):
+                                    ratios = [val_f / val_m for val_f, val_m in zip(valid_time, valid_memento_time) if val_m > 0]
+                                    all_self_time_ratios.extend(ratios)
+                        
+                        if all_self_time_ratios:
+                            min_time_ratio = min(all_self_time_ratios)
+                            max_time_ratio = max(all_self_time_ratios)
+                            print(f"\nSelf1-4 查询时间统计:")
+                            print(f"  平均: {avg_self_time:.2f} ns ({time_ratio:.3f}x)")
+                            print(f"  最小比值: ({min_time_ratio:.3f}x)")
+                            print(f"  最大比值: ({max_time_ratio:.3f}x)")
+                        else:
+                            print(f"\nSelf1-4 平均查询时间: {avg_self_time:.2f} ns ({time_ratio:.3f}x)")
+                        
+                        # 找到最优（最小）查询时间
+                        min_self_time = min(self_time_values)
+                        min_time_ratio = min_self_time / memento_time if memento_time > 0 else float('inf')
+                        min_time_filter = [f for f in self_filters if f in avg_time and avg_time[f] == min_self_time][0]
+                        print(f"  最优查询时间: {min_self_time:.2f} ns ({min_time_ratio:.3f}x) [{min_time_filter}]")
 
 
 def plot_construction():
@@ -354,6 +513,7 @@ def plot_true():
         try:
             data = pd.read_csv(get_file(ds, r[1], "kuniform", "qtrue", true_test_path))
             data["single_query_time"] = (data["query_time"] / data["n_queries"]) * 10 ** 6
+            # data["single_query_time"] = (data["query_time"].apply(lambda x: max(x, 1)) / data["n_queries"]) * 10 ** 6
             data.plot("bpk", "single_query_time", ax=axes[idx], **RANGE_FILTERS_STYLE_KWARGS[ds], **LINES_STYLE)
         except FileNotFoundError:
             pass
@@ -389,9 +549,9 @@ def plot_correlated():
     CORR_DEGREES = range(0, 11)
     XLABELS = [x / 10 for x in CORR_DEGREES]
     
-    # RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "rsqf", "self1", "self2", "self3", "self4"]
+    RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "rsqf", "self1", "self2", "self4"]
     # RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4", "rsqf"]    
-    RANGE_FILTERS = ["self1", "self2"]   
+    # RANGE_FILTERS = ["self1", "self2"]   
     corr_test_path = f"{base_csv_path}/corr_test"
     sorted_dirs = sorted(os.listdir(corr_test_path), reverse=True)
     if len(sorted_dirs) < 1:
@@ -465,6 +625,139 @@ def plot_correlated():
     # plt.savefig(f"{out_folder}/corr_test_(Fig_8).png")
     plt.savefig(f"{out_folder}/corr_test_(Fig_8).pdf", bbox_inches="tight", pad_inches=0.01)
     # plt.savefig(Path(out_folder) / "corr_test_(Fig_8).pdf", bbox_inches="tight", pad_inches=0.01)
+   # 计算平均 FPR 和查询时间的比值，以 memento 为基准
+    print("\n=== QS 测试结果统计 (以 Memento 为基准=1) ===")
+    
+    # 计算每个滤波器的平均值
+    for r in range(len(QUERY_RANGE)):
+        print(f"\n{QUERY_RANGE_LABEL[r]}:")
+        print("-" * 50)
+        
+        # 计算平均 FPR
+        avg_fpr = {}
+        avg_time = {}
+        
+        for filter_name in RANGE_FILTERS:
+            if filter_name in values[r]:
+                # 过滤有效值
+                valid_fpr = [val for val in values[r][filter_name] if not np.isnan(val)]
+                valid_time = [val for val in time_values[r][filter_name] if not np.isnan(val)]
+                
+                if valid_fpr:
+                    avg_fpr[filter_name] = np.mean(valid_fpr)
+                if valid_time:
+                    avg_time[filter_name] = np.mean(valid_time)
+        
+        # 以 memento 为基准计算比值
+        if "memento" in avg_fpr and "memento" in avg_time:
+            memento_fpr = avg_fpr["memento"]
+            memento_time = avg_time["memento"]
+            
+            print("FPR 比值 (相对于 Memento):")
+            for filter_name in RANGE_FILTERS:
+                if filter_name in avg_fpr:
+                    ratio = avg_fpr[filter_name] / memento_fpr if memento_fpr > 0 else float('inf')
+                    
+                    # 计算所有比值，然后找出最小和最大比值
+                    valid_fpr = [val for val in values[r][filter_name] if not np.isnan(val)]
+                    valid_memento_fpr = [val for val in values[r]["memento"] if not np.isnan(val)]
+                    if valid_fpr and valid_memento_fpr and len(valid_fpr) == len(valid_memento_fpr):
+                        all_ratios = [val_f / val_m for val_f, val_m in zip(valid_fpr, valid_memento_fpr) if val_m > 0]
+                        if all_ratios:
+                            min_ratio = min(all_ratios)
+                            max_ratio = max(all_ratios)
+                            avg_ratio = np.mean(all_ratios)
+                            print(f"  {filter_name:8}: 平均 {avg_fpr[filter_name]:.2e} ({ratio:.3f}x), 最小比值 ({min_ratio:.3f}x), 最大比值 ({max_ratio:.3f}x), 平均比值 ({avg_ratio:.3f}x)")
+                        else:
+                            print(f"  {filter_name:8}: 平均 {avg_fpr[filter_name]:.2e} ({ratio:.3f}x)")
+                    else:
+                        print(f"  {filter_name:8}: 平均 {avg_fpr[filter_name]:.2e} ({ratio:.3f}x)")
+            
+            print("\n查询时间比值 (相对于 Memento):")
+            for filter_name in RANGE_FILTERS:
+                if filter_name in avg_time:
+                    ratio = avg_time[filter_name] / memento_time if memento_time > 0 else float('inf')
+                    
+                    # 计算所有比值，然后找出最小和最大比值
+                    valid_time = [val for val in time_values[r][filter_name] if not np.isnan(val)]
+                    valid_memento_time = [val for val in time_values[r]["memento"] if not np.isnan(val)]
+                    if valid_time and valid_memento_time and len(valid_time) == len(valid_memento_time):
+                        all_ratios = [val_f / val_m for val_f, val_m in zip(valid_time, valid_memento_time) if val_m > 0]
+                        if all_ratios:
+                            min_ratio = min(all_ratios)
+                            max_ratio = max(all_ratios)
+                            avg_ratio = np.mean(all_ratios)
+                            print(f"  {filter_name:8}: 平均 {avg_fpr[filter_name]:.2e} ({ratio:.3f}x), 最小比值 ({min_ratio:.3f}x), 最大比值 ({max_ratio:.3f}x), 平均比值 ({avg_ratio:.3f}x)")
+                        else:
+                            print(f"  {filter_name:8}: 平均 {avg_time[filter_name]:.2f} ns ({ratio:.3f}x)")
+                    else:
+                        print(f"  {filter_name:8}: 平均 {avg_time[filter_name]:.2f} ns ({ratio:.3f}x)")
+            
+            # 计算 self1-4 的平均情况
+            self_filters = [f for f in RANGE_FILTERS if f.startswith('self')]
+            if self_filters:
+                self_fpr_values = [avg_fpr[f] for f in self_filters if f in avg_fpr]
+                self_time_values = [avg_time[f] for f in self_filters if f in avg_time]
+                
+                if self_fpr_values:
+                    avg_self_fpr = np.mean(self_fpr_values)
+                    fpr_ratio = avg_self_fpr / memento_fpr if memento_fpr > 0 else float('inf')
+                    
+                    # 计算 self1-4 所有数据点的比值，然后找出最小和最大比值
+                    all_self_fpr_ratios = []
+                    valid_memento_fpr = [val for val in values[r]["memento"] if not np.isnan(val)]
+                    for f in self_filters:
+                        if f in values[r]:
+                            valid_fpr = [val for val in values[r][f] if not np.isnan(val)]
+                            if valid_fpr and valid_memento_fpr and len(valid_fpr) == len(valid_memento_fpr):
+                                ratios = [val_f / val_m for val_f, val_m in zip(valid_fpr, valid_memento_fpr) if val_m > 0]
+                                all_self_fpr_ratios.extend(ratios)
+                    
+                    if all_self_fpr_ratios:
+                        min_fpr_ratio = min(all_self_fpr_ratios)
+                        max_fpr_ratio = max(all_self_fpr_ratios)
+                        print(f"\nSelf1-4 FPR 统计:")
+                        print(f"  平均: {avg_self_fpr:.2e} ({fpr_ratio:.3f}x)")
+                        print(f"  最小比值: ({min_fpr_ratio:.3f}x)")
+                        print(f"  最大比值: ({max_fpr_ratio:.3f}x)")
+                    else:
+                        print(f"\nSelf1-4 平均 FPR: {avg_self_fpr:.2e} ({fpr_ratio:.3f}x)")
+                    
+                    # 找到最优（最小）FPR
+                    min_self_fpr = min(self_fpr_values)
+                    min_fpr_ratio = min_self_fpr / memento_fpr if memento_fpr > 0 else float('inf')
+                    min_fpr_filter = [f for f in self_filters if f in avg_fpr and avg_fpr[f] == min_self_fpr][0]
+                    print(f"  最优 FPR: {min_self_fpr:.2e} ({min_fpr_ratio:.3f}x) [{min_fpr_filter}]")
+                
+                if self_time_values:
+                    avg_self_time = np.mean(self_time_values)
+                    time_ratio = avg_self_time / memento_time if memento_time > 0 else float('inf')
+                    
+                    # 计算 self1-4 所有数据点的比值，然后找出最小和最大比值
+                    all_self_time_ratios = []
+                    valid_memento_time = [val for val in time_values[r]["memento"] if not np.isnan(val)]
+                    for f in self_filters:
+                        if f in time_values[r]:
+                            valid_time = [val for val in time_values[r][f] if not np.isnan(val)]
+                            if valid_time and valid_memento_time and len(valid_time) == len(valid_memento_time):
+                                ratios = [val_f / val_m for val_f, val_m in zip(valid_time, valid_memento_time) if val_m > 0]
+                                all_self_time_ratios.extend(ratios)
+                    
+                    if all_self_time_ratios:
+                        min_time_ratio = min(all_self_time_ratios)
+                        max_time_ratio = max(all_self_time_ratios)
+                        print(f"\nSelf1-4 查询时间统计:")
+                        print(f"  平均: {avg_self_time:.2f} ns ({time_ratio:.3f}x)")
+                        print(f"  最小比值: ({min_time_ratio:.3f}x)")
+                        print(f"  最大比值: ({max_time_ratio:.3f}x)")
+                    else:
+                        print(f"\nSelf1-4 平均查询时间: {avg_self_time:.2f} ns ({time_ratio:.3f}x)")
+                    
+                    # 找到最优（最小）查询时间
+                    min_self_time = min(self_time_values)
+                    min_time_ratio = min_self_time / memento_time if memento_time > 0 else float('inf')
+                    min_time_filter = [f for f in self_filters if f in avg_time and avg_time[f] == min_self_time][0]
+                    print(f"  最优查询时间: {min_self_time:.2f} ns ({min_time_ratio:.3f}x) [{min_time_filter}]")
 
 def plot_qs():
     LEGEND_FONT_SIZE = 7
@@ -475,9 +768,9 @@ def plot_qs():
     QS_VALUES = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
     XLABELS = QS_VALUES
     CORR_DEGREE = 8  # 固定使用 correlation degree = 1.0
-    # RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "rsqf", "self1", "self2", "self3", "self4"]
+    RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "rsqf", "self1", "self2", "self4"]
     # RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4", "rsqf"]  
-    RANGE_FILTERS = ["self1", "self2"] 
+    # RANGE_FILTERS = ["self1", "self2"] 
     qs_base_path = f"{base_csv_path}/qs"
     
     # 检查基础目录是否存在
@@ -625,6 +918,139 @@ def plot_qs():
                     fancybox=True, shadow=False, ncol=1, fontsize=LEGEND_FONT_SIZE)
     
     plt.savefig(f"{out_folder}/qs_test(Fig_7)_CORR_DEGREE_{CORR_DEGREE/10}.pdf", bbox_inches="tight", pad_inches=0.01)
+    # 计算平均 FPR 和查询时间的比值，以 memento 为基准
+    print("\n=== QS 测试结果统计 (以 Memento 为基准=1) ===")
+    
+    # 计算每个滤波器的平均值
+    for r in range(len(QUERY_RANGE)):
+        print(f"\n{QUERY_RANGE_LABEL[r]}:")
+        print("-" * 50)
+        
+        # 计算平均 FPR
+        avg_fpr = {}
+        avg_time = {}
+        
+        for filter_name in RANGE_FILTERS:
+            if filter_name in values[r]:
+                # 过滤有效值
+                valid_fpr = [val for val in values[r][filter_name] if not np.isnan(val)]
+                valid_time = [val for val in time_values[r][filter_name] if not np.isnan(val)]
+                
+                if valid_fpr:
+                    avg_fpr[filter_name] = np.mean(valid_fpr)
+                if valid_time:
+                    avg_time[filter_name] = np.mean(valid_time)
+        
+        # 以 memento 为基准计算比值
+        if "memento" in avg_fpr and "memento" in avg_time:
+            memento_fpr = avg_fpr["memento"]
+            memento_time = avg_time["memento"]
+            
+            print("FPR 比值 (相对于 Memento):")
+            for filter_name in RANGE_FILTERS:
+                if filter_name in avg_fpr:
+                    ratio = avg_fpr[filter_name] / memento_fpr if memento_fpr > 0 else float('inf')
+                    
+                    # 计算所有比值，然后找出最小和最大比值
+                    valid_fpr = [val for val in values[r][filter_name] if not np.isnan(val)]
+                    valid_memento_fpr = [val for val in values[r]["memento"] if not np.isnan(val)]
+                    if valid_fpr and valid_memento_fpr and len(valid_fpr) == len(valid_memento_fpr):
+                        all_ratios = [val_f / val_m for val_f, val_m in zip(valid_fpr, valid_memento_fpr) if val_m > 0]
+                        if all_ratios:
+                            min_ratio = min(all_ratios)
+                            max_ratio = max(all_ratios)
+                            avg_ratio = np.mean(all_ratios)
+                            print(f"  {filter_name:8}: 平均 {avg_fpr[filter_name]:.2e} ({ratio:.3f}x), 最小比值 ({min_ratio:.3f}x), 最大比值 ({max_ratio:.3f}x), 平均比值 ({avg_ratio:.3f}x)")
+                        else:
+                            print(f"  {filter_name:8}: 平均 {avg_fpr[filter_name]:.2e} ({ratio:.3f}x)")
+                    else:
+                        print(f"  {filter_name:8}: 平均 {avg_fpr[filter_name]:.2e} ({ratio:.3f}x)")
+            
+            print("\n查询时间比值 (相对于 Memento):")
+            for filter_name in RANGE_FILTERS:
+                if filter_name in avg_time:
+                    ratio = avg_time[filter_name] / memento_time if memento_time > 0 else float('inf')
+                    
+                    # 计算所有比值，然后找出最小和最大比值
+                    valid_time = [val for val in time_values[r][filter_name] if not np.isnan(val)]
+                    valid_memento_time = [val for val in time_values[r]["memento"] if not np.isnan(val)]
+                    if valid_time and valid_memento_time and len(valid_time) == len(valid_memento_time):
+                        all_ratios = [val_f / val_m for val_f, val_m in zip(valid_time, valid_memento_time) if val_m > 0]
+                        if all_ratios:
+                            min_ratio = min(all_ratios)
+                            max_ratio = max(all_ratios)
+                            avg_ratio = np.mean(all_ratios)
+                            print(f"  {filter_name:8}: 平均 {avg_fpr[filter_name]:.2e} ({ratio:.3f}x), 最小比值 ({min_ratio:.3f}x), 最大比值 ({max_ratio:.3f}x), 平均比值 ({avg_ratio:.3f}x)")
+                        else:
+                            print(f"  {filter_name:8}: 平均 {avg_time[filter_name]:.2f} ns ({ratio:.3f}x)")
+                    else:
+                        print(f"  {filter_name:8}: 平均 {avg_time[filter_name]:.2f} ns ({ratio:.3f}x)")
+            
+            # 计算 self1-4 的平均情况
+            self_filters = [f for f in RANGE_FILTERS if f.startswith('self')]
+            if self_filters:
+                self_fpr_values = [avg_fpr[f] for f in self_filters if f in avg_fpr]
+                self_time_values = [avg_time[f] for f in self_filters if f in avg_time]
+                
+                if self_fpr_values:
+                    avg_self_fpr = np.mean(self_fpr_values)
+                    fpr_ratio = avg_self_fpr / memento_fpr if memento_fpr > 0 else float('inf')
+                    
+                    # 计算 self1-4 所有数据点的比值，然后找出最小和最大比值
+                    all_self_fpr_ratios = []
+                    valid_memento_fpr = [val for val in values[r]["memento"] if not np.isnan(val)]
+                    for f in self_filters:
+                        if f in values[r]:
+                            valid_fpr = [val for val in values[r][f] if not np.isnan(val)]
+                            if valid_fpr and valid_memento_fpr and len(valid_fpr) == len(valid_memento_fpr):
+                                ratios = [val_f / val_m for val_f, val_m in zip(valid_fpr, valid_memento_fpr) if val_m > 0]
+                                all_self_fpr_ratios.extend(ratios)
+                    
+                    if all_self_fpr_ratios:
+                        min_fpr_ratio = min(all_self_fpr_ratios)
+                        max_fpr_ratio = max(all_self_fpr_ratios)
+                        print(f"\nSelf1-4 FPR 统计:")
+                        print(f"  平均: {avg_self_fpr:.2e} ({fpr_ratio:.3f}x)")
+                        print(f"  最小比值: ({min_fpr_ratio:.3f}x)")
+                        print(f"  最大比值: ({max_fpr_ratio:.3f}x)")
+                    else:
+                        print(f"\nSelf1-4 平均 FPR: {avg_self_fpr:.2e} ({fpr_ratio:.3f}x)")
+                    
+                    # 找到最优（最小）FPR
+                    min_self_fpr = min(self_fpr_values)
+                    min_fpr_ratio = min_self_fpr / memento_fpr if memento_fpr > 0 else float('inf')
+                    min_fpr_filter = [f for f in self_filters if f in avg_fpr and avg_fpr[f] == min_self_fpr][0]
+                    print(f"  最优 FPR: {min_self_fpr:.2e} ({min_fpr_ratio:.3f}x) [{min_fpr_filter}]")
+                
+                if self_time_values:
+                    avg_self_time = np.mean(self_time_values)
+                    time_ratio = avg_self_time / memento_time if memento_time > 0 else float('inf')
+                    
+                    # 计算 self1-4 所有数据点的比值，然后找出最小和最大比值
+                    all_self_time_ratios = []
+                    valid_memento_time = [val for val in time_values[r]["memento"] if not np.isnan(val)]
+                    for f in self_filters:
+                        if f in time_values[r]:
+                            valid_time = [val for val in time_values[r][f] if not np.isnan(val)]
+                            if valid_time and valid_memento_time and len(valid_time) == len(valid_memento_time):
+                                ratios = [val_f / val_m for val_f, val_m in zip(valid_time, valid_memento_time) if val_m > 0]
+                                all_self_time_ratios.extend(ratios)
+                    
+                    if all_self_time_ratios:
+                        min_time_ratio = min(all_self_time_ratios)
+                        max_time_ratio = max(all_self_time_ratios)
+                        print(f"\nSelf1-4 查询时间统计:")
+                        print(f"  平均: {avg_self_time:.2f} ns ({time_ratio:.3f}x)")
+                        print(f"  最小比值: ({min_time_ratio:.3f}x)")
+                        print(f"  最大比值: ({max_time_ratio:.3f}x)")
+                    else:
+                        print(f"\nSelf1-4 平均查询时间: {avg_self_time:.2f} ns ({time_ratio:.3f}x)")
+                    
+                    # 找到最优（最小）查询时间
+                    min_self_time = min(self_time_values)
+                    min_time_ratio = min_self_time / memento_time if memento_time > 0 else float('inf')
+                    min_time_filter = [f for f in self_filters if f in avg_time and avg_time[f] == min_self_time][0]
+                    print(f"  最优查询时间: {min_self_time:.2f} ns ({min_time_ratio:.3f}x) [{min_time_filter}]")
 
 def plot_vary_memento_size():
     LEGEND_FONT_SIZE = 7
@@ -690,6 +1116,8 @@ def plot_vary_memento_size():
                       loc='center left', bbox_to_anchor=(1, -0.05),
                       fancybox=True, shadow=False, ncol=1, fontsize=LEGEND_FONT_SIZE)
     plt.savefig(f"{out_folder}/vary_memento_test_(Fig_12).pdf", bbox_inches="tight", pad_inches=0.01)
+
+
 
 
 def plot_expandability():
