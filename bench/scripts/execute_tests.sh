@@ -19,7 +19,7 @@
 #
 
 
-FIGURE_OPTIONS=("fpr" "construction" "true" "correlated" "vary_memento_size" "expandability" "btree")
+FIGURE_OPTIONS=("fpr" "construction" "true" "correlated" "vary_memento_size" "expandability" "btree" "true2")
 
 FIGURES="fpr,construction,true,correlated,vary_memento_size,expandability,btree"
 
@@ -115,6 +115,14 @@ if [[ "$FIGURES" == *"true"* ]]; then
         exit 1
     fi
     echo "[!!] true_test (Fig. 10) test executed successfully"
+fi 
+
+if [[ "$FIGURES" == *"true2"* ]]; then 
+    if ! python3 $SCRIPT_DIR_PATH/test.py $ARGS --test true $WORKLOADS_PATH/true_test2 $MEMENTO_BUILD_PATH ; then
+        echo "[!!] true_test2 test failed"
+        exit 1
+    fi
+    echo "[!!] true_test2 (Fig. 10) test executed successfully"
 fi 
 
 if [[ "$FIGURES" == *"construction"* ]]; then 

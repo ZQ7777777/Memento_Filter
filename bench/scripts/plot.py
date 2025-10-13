@@ -37,17 +37,19 @@ out_folder = None
 RANGE_FILTERS_STYLE_KWARGS = {"memento": {"marker": '4', "color": "fuchsia", "zorder": 11, "label": "Memento"},
                               "grafite": {"marker": 'o', "color": "dimgray", "zorder": 10, "label": "Grafite"},
                               "none": {"marker": 'x', "color": "dimgray", "zorder": 10, "label": "Baseline"},
-                              "snarf": {"marker": '^', "color": "C1", "label": "SNARF"},
+                              # "snarf": {"marker": '^', "color": "C1", "label": "SNARF"},
+                              "snarf": {"marker": 'p', "color": "C6", "label": "SNARF"},
                               "oasis": {"marker": '+', "color": "tan", "label": "Oasis+"},
                               "surf": {"marker": 's', "color": "C2", "label": "SuRF"},
                               "proteus": {"marker": 'X', "color": "C3", "label": "Proteus"},
                               "rosetta": {"marker": 'd', "color": "C4", "label": "Rosetta"},
                               "rencoder": {"marker": '>', "color": "C5", "label": "REncoder"},
                               "rsqf": {"marker": '3', "color": "black", "label": "RSQF"},
-                              "self1": {"marker": 'P', "color": "darkred", "zorder": 12, "label": "APCF_CNT3(ALPHA=0.03)"},
-                              "self2": {"marker": 'p', "color": "dimgray", "zorder": 12, "label": "FRA_F2_R1(ALPHA=0.03)"},
-                              "self3": {"marker": 'o', "color": "tan", "zorder": 12, "label": "PCF_CNT3(ALPHA=0.02)"},
-                              "self4": {"marker": 'D', "color": "C5", "zorder": 12, "label": "PCF_CNT3(ALPHA=0.03)"},
+                              "self2": {"marker": '^', "color": "C1", "zorder": 12, "label": "ARR"}
+                              # "self1": {"marker": 'P', "color": "darkred", "zorder": 12, "label": "APCF_CNT3(ALPHA=0.03)"},
+                              # "self2": {"marker": 'p', "color": "dimgray", "zorder": 12, "label": "FRA_F2_R1(ALPHA=0.03)"},
+                              # "self3": {"marker": 'o', "color": "tan", "zorder": 12, "label": "PCF_CNT3(ALPHA=0.02)"},
+                              # "self4": {"marker": 'D', "color": "C5", "zorder": 12, "label": "PCF_CNT3(ALPHA=0.03)"},
                               }  # 新增
 BTREE_RANGE_FILTERS_STYLE_KWARGS = {"memento": {"marker": '4', "color": "fuchsia", "zorder": 11, "label": "Memento"},
                                      "none": {"marker": 'x', "color": "dimgray", "zorder": 10, "label": "Baseline"}}
@@ -150,9 +152,9 @@ def print_fpr_test(fpr_test_path, fpr_real_test_path, filters, workloads, name):
     else:
         ncol = len(filters)
         bbox = (0.5, 1.5)
-    #show legend
-    # axes[0][1].legend(lines, labels, loc="upper center", bbox_to_anchor=bbox,
-    #         fancybox=True, shadow=False, ncol=ncol, fontsize=LEGEND_FONT_SIZE)
+    # show legend
+    axes[0][1].legend(lines, labels, loc="upper center", bbox_to_anchor=bbox,
+            fancybox=True, shadow=False, ncol=ncol, fontsize=LEGEND_FONT_SIZE)
     fig.savefig(f"{out_folder}/fpr_test_{name}_(Fig_9).pdf", bbox_inches="tight", pad_inches=0.01)
 
 def generate_tables(fpr_test_path, fpr_real_test_path, filters, workloads):
@@ -247,7 +249,7 @@ def generate_tables(fpr_test_path, fpr_real_test_path, filters, workloads):
 def plot_fpr():
     WORKLOADS = [("kuniform", "qcorrelated"), ("kuniform", "quniform"), ("books"), ("osm")]
     # WORKLOADS = [("kuniform", "qcorrelated"),("books")]
-    RANGE_FILTERS = ["memento", "grafite", "surf", "proteus", "snarf", "oasis", "rencoder", "rosetta", "self1", "self2", "self4"]
+    RANGE_FILTERS = ["memento", "grafite", "surf", "proteus", "snarf", "oasis", "rencoder", "rosetta", "self2"]
     # RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4"]  # 新增
     # RANGE_FILTERS = ["self1", "self2"] 
     fpr_test_path = f"{base_csv_path}/fpr_test"
@@ -335,6 +337,7 @@ def plot_fpr():
                         valid_memento_fpr = values[r]["memento"]
                         if valid_fpr and valid_memento_fpr and len(valid_fpr) == len(valid_memento_fpr):
                             all_ratios = [val_f / val_m for val_f, val_m in zip(valid_fpr, valid_memento_fpr) if val_m > 0]
+                            print(all_ratios)
                             if all_ratios:
                                 min_ratio = min(all_ratios)
                                 max_ratio = max(all_ratios)
@@ -441,7 +444,7 @@ def plot_construction():
 
     matplotlib.rcParams["hatch.linewidth"] = 0.1
 
-    RANGE_FILTERS = ["memento", "grafite", "snarf", "oasis", "surf", "proteus", "rosetta", "rencoder", "self1", "self2", "self3", "self4"]
+    RANGE_FILTERS = ["memento", "grafite", "snarf", "oasis", "surf", "proteus", "rosetta", "rencoder", "self2"]
 
     size_test_path = f"{base_csv_path}/constr_time_test"
     sorted_dirs = sorted(os.listdir(size_test_path), reverse=True)
@@ -492,11 +495,11 @@ def plot_true():
     XLABEL_FONT_SIZE = 9.5
     WIDTH = 7.16808 * 0.7
     HEIGHT = 7.16808 * 0.15
-    YTICKS = [10 ** i for i in range(2, 6)]
+    YTICKS = [10 ** i for i in range(1, 6)]
     MAX_X_AXIS_BPK = 30
     KEYS_SYNTH = ["kuniform"]
 
-    RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "self1", "self2", "self3", "self4"]
+    RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "self2"]
 
     true_test_path = f"{base_csv_path}/true_test"
     sorted_dirs = sorted(os.listdir(true_test_path), reverse=True)
@@ -507,7 +510,8 @@ def plot_true():
     nrows = len(KEYS_SYNTH)
     ncols = len(QUERY_RANGE)
     fig, axes = plt.subplots(nrows=nrows, ncols=ncols, sharex=True, sharey="row", figsize=(WIDTH, HEIGHT))
-     
+    # values = [collections.defaultdict(list) for _ in range(len(QUERY_RANGE))]
+    time_values = [collections.defaultdict(list) for _ in range(len(QUERY_RANGE))]
     for (ds, r) in itertools.product(RANGE_FILTERS, enumerate(QUERY_RANGE)):
         (idx, ran) = r
         try:
@@ -515,6 +519,9 @@ def plot_true():
             data["single_query_time"] = (data["query_time"] / data["n_queries"]) * 10 ** 6
             # data["single_query_time"] = (data["query_time"].apply(lambda x: max(x, 1)) / data["n_queries"]) * 10 ** 6
             data.plot("bpk", "single_query_time", ax=axes[idx], **RANGE_FILTERS_STYLE_KWARGS[ds], **LINES_STYLE)
+            # time_values[idx][ds].append((data["query_time"] / data["n_queries"]) * 10 ** 6)
+            for _, row in data.iterrows():
+                    time_values[idx][ds].append(row["single_query_time"])
         except FileNotFoundError:
             pass
      
@@ -538,7 +545,103 @@ def plot_true():
                       loc="center left", bbox_to_anchor=(1, 0.5),
                       fancybox=True, shadow=False, ncol=2, fontsize=LEGEND_FONT_SIZE, columnspacing=0.5)
     fig.savefig(f"{out_folder}/true_queries_test_(Fig_10).pdf", bbox_inches="tight", pad_inches=0.01)
+        # 计算平均 FPR 和查询时间的比值，以 memento 为基准
+    print("\n=== true 测试结果统计 (以 Memento 为基准=1) ===")
+    
+    # 计算每个滤波器的平均值
+    for r in range(len(QUERY_RANGE)):
+        print(f"\n{QUERY_RANGE_LABEL[r]}:")
+        print("-" * 50)
+        
+        avg_time = {}
+        
+        for filter_name in RANGE_FILTERS:
+            if filter_name in time_values[r]:
+                # 过滤有效值
 
+                valid_time = [val for val in time_values[r][filter_name] if not np.isnan(val)]
+                
+                if valid_time:
+                    avg_time[filter_name] = np.mean(valid_time)
+        
+        # 以 memento 为基准计算比值
+        if "memento" in avg_time:
+            memento_time = avg_time["memento"]
+            
+            
+            print("\n查询时间比值 (相对于 Memento):")
+            for filter_name in RANGE_FILTERS:
+                if filter_name in avg_time:
+                    ratio = avg_time[filter_name] / memento_time if memento_time > 0 else float('inf')
+                    
+                    # 计算所有比值，然后找出最小和最大比值
+                    valid_time = [val for val in time_values[r][filter_name] if not np.isnan(val)]
+                    valid_memento_time = [val for val in time_values[r]["memento"] if not np.isnan(val)]
+                    if valid_time and valid_memento_time and len(valid_time) == len(valid_memento_time):
+                        all_ratios = [val_f / val_m for val_f, val_m in zip(valid_time, valid_memento_time) if val_m > 0]
+                        if all_ratios:
+                            min_ratio = min(all_ratios)
+                            max_ratio = max(all_ratios)
+                            avg_ratio = np.mean(all_ratios)
+                            # 格式化输出，对于小于0.001的值使用科学计数法
+                            time_str = f"{avg_time[filter_name]:.2e}" if avg_time[filter_name] < 0.001 else f"{avg_time[filter_name]:.2f}"
+                            ratio_str = f"{ratio:.3f}" if ratio >= 0.001 else f"{ratio:.2e}"
+                            min_ratio_str = f"{min_ratio:.3f}" if min_ratio >= 0.001 else f"{min_ratio:.2e}"
+                            max_ratio_str = f"{max_ratio:.3f}" if max_ratio >= 0.001 else f"{max_ratio:.2e}"
+                            avg_ratio_str = f"{avg_ratio:.3f}" if avg_ratio >= 0.001 else f"{avg_ratio:.2e}"
+                            print(f"  {filter_name:8}: 平均 {time_str} ns ({ratio_str}x), 最小比值 ({min_ratio_str}x), 最大比值 ({max_ratio_str}x), 平均比值 ({avg_ratio_str}x)")
+                        else:
+                            time_str = f"{avg_time[filter_name]:.2e}" if avg_time[filter_name] < 0.001 else f"{avg_time[filter_name]:.2f}"
+                            ratio_str = f"{ratio:.3f}" if ratio >= 0.001 else f"{ratio:.2e}"
+                            print(f"  {filter_name:8}: 平均 {time_str} ns ({ratio_str}x)")
+                    else:
+                        time_str = f"{avg_time[filter_name]:.2e}" if avg_time[filter_name] < 0.001 else f"{avg_time[filter_name]:.2f}"
+                        ratio_str = f"{ratio:.3f}" if ratio >= 0.001 else f"{ratio:.2e}"
+                        print(f"  {filter_name:8}: 平均 {time_str} ns ({ratio_str}x)")
+            
+            # 计算 self1-4 的平均情况
+            self_filters = [f for f in RANGE_FILTERS if f.startswith('self')]
+            if self_filters:
+                self_time_values = [avg_time[f] for f in self_filters if f in avg_time]
+                
+                
+                if self_time_values:
+                    avg_self_time = np.mean(self_time_values)
+                    time_ratio = avg_self_time / memento_time if memento_time > 0 else float('inf')
+                    
+                    # 计算 self1-4 所有数据点的比值，然后找出最小和最大比值
+                    all_self_time_ratios = []
+                    valid_memento_time = [val for val in time_values[r]["memento"] if not np.isnan(val)]
+                    for f in self_filters:
+                        if f in time_values[r]:
+                            valid_time = [val for val in time_values[r][f] if not np.isnan(val)]
+                            if valid_time and valid_memento_time and len(valid_time) == len(valid_memento_time):
+                                ratios = [val_f / val_m for val_f, val_m in zip(valid_time, valid_memento_time) if val_m > 0]
+                                all_self_time_ratios.extend(ratios)
+                    
+                    if all_self_time_ratios:
+                        min_time_ratio = min(all_self_time_ratios)
+                        max_time_ratio = max(all_self_time_ratios)
+                        print(f"\nSelf1-4 查询时间统计:")
+                        time_str = f"{avg_self_time:.2e}" if avg_self_time < 0.001 else f"{avg_self_time:.2f}"
+                        time_ratio_str = f"{time_ratio:.3f}" if time_ratio >= 0.001 else f"{time_ratio:.2e}"
+                        min_ratio_str = f"{min_time_ratio:.3f}" if min_time_ratio >= 0.001 else f"{min_time_ratio:.2e}"
+                        max_ratio_str = f"{max_time_ratio:.3f}" if max_time_ratio >= 0.001 else f"{max_time_ratio:.2e}"
+                        print(f"  平均: {time_str} ns ({time_ratio_str}x)")
+                        print(f"  最小比值: ({min_ratio_str}x)")
+                        print(f"  最大比值: ({max_ratio_str}x)")
+                    else:
+                        time_str = f"{avg_self_time:.2e}" if avg_self_time < 0.001 else f"{avg_self_time:.2f}"
+                        time_ratio_str = f"{time_ratio:.3f}" if time_ratio >= 0.001 else f"{time_ratio:.2e}"
+                        print(f"\nSelf1-4 平均查询时间: {time_str} ns ({time_ratio_str}x)")
+                    
+                    # 找到最优（最小）查询时间
+                    min_self_time = min(self_time_values)
+                    min_time_ratio = min_self_time / memento_time if memento_time > 0 else float('inf')
+                    min_time_filter = [f for f in self_filters if f in avg_time and avg_time[f] == min_self_time][0]
+                    min_time_str = f"{min_self_time:.2e}" if min_self_time < 0.001 else f"{min_self_time:.2f}"
+                    min_ratio_str = f"{min_time_ratio:.3f}" if min_time_ratio >= 0.001 else f"{min_time_ratio:.2e}"
+                    print(f"  最优查询时间: {min_time_str} ns ({min_ratio_str}x) [{min_time_filter}]")
 
 def plot_correlated():
     LEGEND_FONT_SIZE = 7
@@ -549,7 +652,7 @@ def plot_correlated():
     CORR_DEGREES = range(0, 11)
     XLABELS = [x / 10 for x in CORR_DEGREES]
     
-    RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "rsqf", "self1", "self2", "self4"]
+    RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "rsqf", "self2"]
     # RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4", "rsqf"]    
     # RANGE_FILTERS = ["self1", "self2"]   
     corr_test_path = f"{base_csv_path}/corr_test"
@@ -768,7 +871,7 @@ def plot_qs():
     QS_VALUES = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
     XLABELS = QS_VALUES
     CORR_DEGREE = 8  # 固定使用 correlation degree = 1.0
-    RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "rsqf", "self1", "self2", "self4"]
+    RANGE_FILTERS = ["memento", "grafite", "snarf", "surf", "proteus", "rosetta", "rencoder", "rsqf", "self2"]
     # RANGE_FILTERS = ["memento", "self1", "self2", "self3", "self4", "rsqf"]  
     # RANGE_FILTERS = ["self1", "self2"] 
     qs_base_path = f"{base_csv_path}/qs"

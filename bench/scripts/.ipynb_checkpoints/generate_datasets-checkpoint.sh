@@ -19,7 +19,7 @@
 #
 
 
-FIGURE_OPTIONS=("fpr" "construction" "true" "correlated" "vary_memento_size" "expandability" "btree")
+FIGURE_OPTIONS=("fpr" "construction" "true" "correlated" "vary_memento_size" "expandability" "btree" "true2")
 SIZE_OPTIONS=("tiny" "small" "medium" "large")
 
 FIGURES="fpr,construction,true,correlated,vary_memento_size"
@@ -90,15 +90,15 @@ while [[ $# -gt 0 ]]; do
 done
 
 
-N_KEYS=200000000
-N_QUERIES=100000000
+# N_KEYS=200000000
+# N_QUERIES=100000000
 if [ "$SIZE" == "${SIZE_OPTIONS[0]}" ]; then
-    # N_KEYS=200000
-    # N_QUERIES=10000
-    # N_KEYS=200000
-    # N_QUERIES=10000000
-    N_KEYS=200000000
-    N_QUERIES=100000000
+    # N_KEYS=2000000
+    # N_QUERIES=100000
+    N_KEYS=200000
+    N_QUERIES=10000000
+    # N_KEYS=200000000
+    # N_QUERIES=100000000
 elif [ "$SIZE" == "${SIZE_OPTIONS[1]}" ]; then
     N_KEYS=2000000
     N_QUERIES=100000
@@ -195,6 +195,16 @@ if [[ "$FIGURES" == *"true"* ]]; then
         exit 1
     fi
     echo "[!!] true_test (figure 10) dataset generated"
+    cd -
+fi
+
+if [[ "$FIGURES" == *"true2"* ]]; then 
+    mkdir -p $OUT_PATH/true_test2 && cd $OUT_PATH/true_test2 || exit 1
+    if ! generate_true_test ; then
+        echo "[!!] true_test2 generation failed"
+        exit 1
+    fi
+    echo "[!!] true_test2 (figure 10) dataset generated"
     cd -
 fi
 
