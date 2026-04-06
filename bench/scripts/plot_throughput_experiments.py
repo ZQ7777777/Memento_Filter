@@ -613,8 +613,8 @@ def main() -> None:
     global OUTPUT_FORMATS
 
     ap = argparse.ArgumentParser()
-    ap.add_argument("--result-dir", default="/home/zq/code2/Memento_Filter/paper_results/results/reconfigured_throughput")
-    ap.add_argument("--figure-dir", default="/home/zq/code2/Memento_Filter/paper_results/figures/reconfigured_throughput")
+    ap.add_argument("--result-dir", default="/home/zq/code2/Memento_Filter/paper_results/results/throughput")
+    ap.add_argument("--figure-dir", default="/home/zq/code2/Memento_Filter/paper_results/figures/throughput")
     ap.add_argument(
         "--figures",
         default="all",

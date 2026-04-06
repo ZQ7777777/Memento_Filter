@@ -55,7 +55,7 @@ MAX_RUNNABLE_M_EXP = 26
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default="/home/zq/code2/Memento_Filter")
-    ap.add_argument("--out-dir", default="paper_results/results/reconfigured_throughput")
+    ap.add_argument("--out-dir", default="paper_results/results/throughput")
     ap.add_argument("--jobs", type=int, default=16)
     ap.add_argument("--max-runnable-m-exp", type=int, default=MAX_RUNNABLE_M_EXP)
     ap.add_argument(
@@ -287,7 +287,7 @@ def main() -> None:
 
     root = Path(args.root)
     out_dir = root / args.out_dir
-    bin_path = root / "build/bench/bench_memento_overflow"
+    bin_path = root / "build/bench/bench_memento_security"
 
     # ------------------------
     # Query experiment 1

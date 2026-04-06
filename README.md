@@ -24,7 +24,7 @@ git clone https://github.com/<your-username>/Memento_Filter.git
 cd Memento_Filter
 mkdir -p build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
-make bench_memento_overflow -j$(nproc)
+make bench_memento_security -j$(nproc)
 cd ..
 ```
 
@@ -33,11 +33,11 @@ cd ..
 To run the full suite of throughput degradation experiments (sweeping over attack ratios, memory sizes `m`, target ranges `x`, and Zipf skewness `s`):
 
 ```bash
-mkdir -p paper_results/results/reconfigured_throughput_full
-python3 bench/scripts/run_reconfigured_throughput_experiments.py \
+mkdir -p paper_results/results/throughput_full
+python3 bench/scripts/run_throughput_experiments.py \
     --experiments all \
     --jobs 24 \
-    --out-dir paper_results/results/reconfigured_throughput_full
+    --out-dir paper_results/results/throughput_full
 ```
 *Note: You can adjust the `--jobs` flag based on your machine's available CPU cores.*
 
@@ -46,10 +46,10 @@ python3 bench/scripts/run_reconfigured_throughput_experiments.py \
 After the benchmarks are complete, generate the publication-ready figures (available in PDF, SVG, and EMF formats) using the automated plotting script:
 
 ```bash
-mkdir -p paper_results/figures/reconfigured_throughput_full
-python3 bench/scripts/plot_reconfigured_throughput_experiments.py \
-    --result-dir paper_results/results/reconfigured_throughput_full \
-    --figure-dir paper_results/figures/reconfigured_throughput_full \
+mkdir -p paper_results/figures/throughput_full
+python3 bench/scripts/plot_throughput_experiments.py \
+    --result-dir paper_results/results/throughput_full \
+    --figure-dir paper_results/figures/throughput_full \
     --figures all \
     --formats pdf,svg,emf
 ```
@@ -57,8 +57,8 @@ The generated figures (e.g., `query_exp12_combined.pdf`, `insert_exp1_throughput
 
 ## Repository Structure
 
-- `bench/filters_benchmark/bench_memento_overflow.cpp`: The core C++ benchmarking implementation of the `x-hot` and `x-hot-zipf` adversarial workloads and throughput timing logic.
-- `bench/scripts/`: Contains the automation (`run_reconfigured_throughput_experiments.py`) and visualization (`plot_reconfigured_throughput_experiments.py`) Python scripts.
+- `bench/filters_benchmark/bench_memento_security.cpp`: The core C++ benchmarking implementation of the `x-hot` and `x-hot-zipf` adversarial workloads and throughput timing logic.
+- `bench/scripts/`: Contains the automation (`run_throughput_experiments.py`) and visualization (`plot_throughput_experiments.py`) Python scripts.
 - `include/` and `src/`: The Memento Filter internal data structure files.
 
 ## Original Memento Filter
