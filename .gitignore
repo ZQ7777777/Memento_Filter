@@ -51,3 +51,7 @@ _deps
 *.appenv/
 venv/
 env/
+
+# paper info and results
+paper_info/
+paper_results/
