@@ -11,10 +11,16 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 
-LEGEND_FONT_SIZE = 7
+QUERY_LEGEND_FONT_SIZE = 7
+QUERY_Saturation_LEGEND_FONT_SIZE = 5.5
+INSERT_LEGEND_FONT_SIZE = 5.5
 TITLE_FONT_SIZE = 9.5
 YLABEL_FONT_SIZE = 9.5
 XLABEL_FONT_SIZE = 9.5
+
+# Local line widths for insert exp1 and query_exp12 first-row (x-sweep) only.
+QUERY_EXP12_ROW1_LINEWIDTH = 0.2
+INSERT_X_SWEEP_LINEWIDTH = 0.65
 
 LINE_STYLES = {
     0.01: {"color": "#1f77b4", "linestyle": "-", "marker": "o", "label": "1%"},
@@ -54,11 +60,11 @@ def setup_style() -> None:
             "font.size": 9,
             "axes.titlesize": TITLE_FONT_SIZE,
             "axes.labelsize": YLABEL_FONT_SIZE,
-            "legend.fontsize": LEGEND_FONT_SIZE,
+            "legend.fontsize": QUERY_LEGEND_FONT_SIZE,
             "xtick.labelsize": 8,
             "ytick.labelsize": 8,
             "lines.linewidth": 0.9,
-            "lines.markersize": 3.2,
+            "lines.markersize": 4,
             "pdf.fonttype": 42,
             "ps.fonttype": 42,
             # Keep text as text in SVG so Word preserves vector quality better.
@@ -107,9 +113,19 @@ def filter_ok(df: pd.DataFrame) -> pd.DataFrame:
     return df[df["status"] == "ok"].copy()
 
 
-def add_ratio_style(ax: plt.Axes, x_vals: list[int], y_vals: list[float], ratio: float, markevery: list[int]) -> None:
+def add_ratio_style(
+    ax: plt.Axes,
+    x_vals: list[int],
+    y_vals: list[float],
+    ratio: float,
+    markevery: list[int],
+    linewidth: float | None = None,
+) -> None:
     style = LINE_STYLES.get(float(ratio), {"color": "black", "linestyle": "-", "marker": "o", "label": f"{ratio:.2f}"})
-    ax.plot(x_vals, y_vals, markevery=markevery, **style)
+    if linewidth is None:
+        ax.plot(x_vals, y_vals, markevery=markevery, **style)
+    else:
+        ax.plot(x_vals, y_vals, markevery=markevery, linewidth=linewidth, **style)
 
 
 def tune_query_axis_ylim(ax: plt.Axes, y_series: list[list[float]], baseline: float) -> bool:
@@ -239,7 +255,7 @@ def plot_query_exp1(base_dir: Path, fig_dir: Path) -> None:
         facecolor="none",
         edgecolor="#c0c0c0",
         framealpha=1.0,
-        fontsize=LEGEND_FONT_SIZE,
+        fontsize=QUERY_LEGEND_FONT_SIZE,
     )
     fig.subplots_adjust(wspace=0.22, right=0.84)
 
@@ -276,7 +292,16 @@ def plot_query_exp1_saturation(base_dir: Path, fig_dir: Path) -> None:
         s = LINE_STYLES.get(float(ratio), {"color": "black", "linestyle": "-", "marker": "o", "label": f"{ratio:.2f}"})
         handles.append(mlines.Line2D([], [], color=s["color"], linestyle=s["linestyle"], marker=s["marker"], label=s["label"]))
     handles.append(mlines.Line2D([], [], color="black", linestyle="--", label="baseline"))
-    ax.legend(handles=handles, frameon=True, facecolor="none", edgecolor="#c0c0c0", framealpha=1.0, fontsize=LEGEND_FONT_SIZE)
+    ax.legend(
+        handles=handles,
+        loc="upper right",
+        bbox_to_anchor=(1.0, 0.4),
+        frameon=True,
+        facecolor="none",
+        edgecolor="#c0c0c0",
+        framealpha=1.0,
+        fontsize=QUERY_Saturation_LEGEND_FONT_SIZE,
+    )
 
     save_figure_multi(fig, fig_dir, "query_exp1_saturation_vs_x")
 
@@ -353,7 +378,7 @@ def plot_query_exp2(base_dir: Path, fig_dir: Path) -> None:
         facecolor="none",
         edgecolor="#c0c0c0",
         framealpha=1.0,
-        fontsize=LEGEND_FONT_SIZE,
+        fontsize=QUERY_LEGEND_FONT_SIZE,
     )
     fig.subplots_adjust(wspace=0.22, right=0.84)
 
@@ -396,7 +421,7 @@ def plot_query_exp12_combined(base_dir: Path, fig_dir: Path) -> None:
             x_vals = g["x"].astype(int).tolist()
             y_vals = [v / 1e7 for v in g[metric].astype(float).tolist()]
             y_series_col.append(y_vals)
-            add_ratio_style(ax, x_vals, y_vals, float(ratio), markevery)
+            add_ratio_style(ax, x_vals, y_vals, float(ratio), markevery, linewidth=QUERY_EXP12_ROW1_LINEWIDTH)
 
         if USE_LOG_Y_FOR_QUERY_THROUGHPUT:
             ax.set_yscale("log")
@@ -481,7 +506,7 @@ def plot_query_exp12_combined(base_dir: Path, fig_dir: Path) -> None:
         facecolor="none",
         edgecolor="#c0c0c0",
         framealpha=1.0,
-        fontsize=LEGEND_FONT_SIZE,
+        fontsize=QUERY_LEGEND_FONT_SIZE,
     )
     fig.text(0.02, 0.5, "Query Throughput (queries/s)", rotation=90, va="center", ha="left", fontsize=YLABEL_FONT_SIZE)
     fig.subplots_adjust(left=0.09, wspace=0.09, hspace=0.5, right=0.835)
@@ -508,11 +533,12 @@ def plot_insert_exp1(base_dir: Path, fig_dir: Path) -> None:
         g = df[df["attack_ratio"] == ratio].sort_values("x")
         x_vals = g["x"].astype(int).tolist()
         y_vals = g["insert_qps"].astype(float).tolist()
-        add_ratio_style(ax, x_vals, y_vals, float(ratio), markevery)
+        add_ratio_style(ax, x_vals, y_vals, float(ratio), markevery, linewidth=INSERT_X_SWEEP_LINEWIDTH)
 
     if not rb.empty:
         ax.axhline(float(rb["insert_qps"].iloc[0]), color="black", linestyle="--", linewidth=0.9)
 
+    ax.set_yscale("log")
     ax.set_xlabel("x", fontsize=XLABEL_FONT_SIZE)
     ax.set_ylabel("Insert Throughput\n(inserts/s)", fontsize=YLABEL_FONT_SIZE)
     ax.grid(alpha=0.25)
@@ -520,9 +546,18 @@ def plot_insert_exp1(base_dir: Path, fig_dir: Path) -> None:
     handles = []
     for ratio in ratios:
         s = LINE_STYLES.get(float(ratio), {"color": "black", "linestyle": "-", "marker": "o", "label": f"{ratio:.2f}"})
-        handles.append(mlines.Line2D([], [], color=s["color"], linestyle=s["linestyle"], marker=s["marker"], label=f"x-hot-zipf {s['label']}"))
+        handles.append(mlines.Line2D([], [], color=s["color"], linestyle=s["linestyle"], marker=s["marker"], label=f"{s['label']}"))
     handles.append(mlines.Line2D([], [], color="black", linestyle="--", label="baseline"))
-    ax.legend(handles=handles, frameon=True, facecolor="none", edgecolor="#c0c0c0", framealpha=1.0, fontsize=LEGEND_FONT_SIZE)
+    ax.legend(
+        handles=handles,
+        loc="center",
+        bbox_to_anchor=(0.80, 0.2),
+        frameon=True,
+        facecolor="white",
+        edgecolor="#c0c0c0",
+        framealpha=1.0,
+        fontsize=INSERT_LEGEND_FONT_SIZE,
+    )
 
     save_figure_multi(fig, fig_dir, "insert_exp1_throughput_vs_x")
 
@@ -553,6 +588,7 @@ def plot_insert_exp2(base_dir: Path, fig_dir: Path) -> None:
         g_rb = rb.sort_values("m_exp")
         ax.plot(g_rb["m_exp"].tolist(), g_rb["insert_qps"].tolist(), color="black", linestyle="--", marker="x", label="random baseline")
 
+    ax.set_yscale("log")
     ax.set_xticks(m_exps)
     ax.set_xticklabels([format_exp_tick(int(e)) for e in m_exps])
     ax.set_xlabel("m", fontsize=XLABEL_FONT_SIZE)
@@ -562,9 +598,9 @@ def plot_insert_exp2(base_dir: Path, fig_dir: Path) -> None:
     handles = []
     for ratio in ratios:
         s = LINE_STYLES.get(float(ratio), {"color": "black", "linestyle": "-", "marker": "o", "label": f"{ratio:.2f}"})
-        handles.append(mlines.Line2D([], [], color=s["color"], linestyle=s["linestyle"], marker=s["marker"], label=f"x-hot-zipf {s['label']}"))
+        handles.append(mlines.Line2D([], [], color=s["color"], linestyle=s["linestyle"], marker=s["marker"], label=f"{s['label']}"))
     handles.append(mlines.Line2D([], [], color="black", linestyle="--", marker="x", label="baseline"))
-    ax.legend(handles=handles, frameon=True, facecolor="none", edgecolor="#c0c0c0", framealpha=1.0, fontsize=LEGEND_FONT_SIZE)
+    ax.legend(handles=handles, frameon=True, facecolor="white", edgecolor="#c0c0c0", framealpha=1.0, fontsize=INSERT_LEGEND_FONT_SIZE)
 
     save_figure_multi(fig, fig_dir, "insert_exp2_throughput_vs_m")
 
@@ -594,6 +630,7 @@ def plot_insert_exp3(base_dir: Path, fig_dir: Path) -> None:
     if not rb.empty:
         ax.axhline(float(rb["insert_qps"].iloc[0]), color="black", linestyle="--", linewidth=0.9)
 
+    ax.set_yscale("log")
     ax.set_xticks(skews)
     ax.set_xlabel("Zipf Skewness", fontsize=XLABEL_FONT_SIZE)
     ax.set_ylabel("Insert Throughput\n(inserts/s)", fontsize=YLABEL_FONT_SIZE)
@@ -602,9 +639,9 @@ def plot_insert_exp3(base_dir: Path, fig_dir: Path) -> None:
     handles = []
     for ratio in ratios:
         s = LINE_STYLES.get(float(ratio), {"color": "black", "linestyle": "-", "marker": "o", "label": f"{ratio:.2f}"})
-        handles.append(mlines.Line2D([], [], color=s["color"], linestyle=s["linestyle"], marker=s["marker"], label=f"x-hot-zipf {s['label']}"))
+        handles.append(mlines.Line2D([], [], color=s["color"], linestyle=s["linestyle"], marker=s["marker"], label=f"{s['label']}"))
     handles.append(mlines.Line2D([], [], color="black", linestyle="--", label="baseline"))
-    ax.legend(handles=handles, frameon=True, facecolor="none", edgecolor="#c0c0c0", framealpha=1.0, fontsize=LEGEND_FONT_SIZE)
+    ax.legend(handles=handles, frameon=True, facecolor="white", edgecolor="#c0c0c0", framealpha=1.0, fontsize=INSERT_LEGEND_FONT_SIZE)
 
     save_figure_multi(fig, fig_dir, "insert_exp3_throughput_vs_skewness")
 

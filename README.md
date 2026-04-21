@@ -1,6 +1,6 @@
-# On the Security of Memento Filter: Attacks and Potential Countermeasures
+# Memento Filter–Oriented Attacks and Potential Countermeasures
 
-This repository contains the source code, attack implementations, and experimental evaluation for the paper **"On the Security of Memento Filter: Attacks and Potential Countermeasures"**. 
+This repository contains the source code, attack implementations, and experimental evaluation for the paper **"Memento Filter–Oriented Attacks and Potential Countermeasures"**. 
 
 We explore performance degradation attacks against the Memento Filter, demonstrating how targeted adversarial insertions (such as `x-hot` and `x-hot-zipf` workloads) can severely degrade both query and insertion throughput by exploiting structural block saturations, both under white-box and black-box threat models.
 
