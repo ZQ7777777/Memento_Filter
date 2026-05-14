@@ -316,6 +316,108 @@ uint64_t find_key_for_projection(const QF* qf,
     return std::numeric_limits<uint64_t>::max();
 }
 
+bool find_random_key_for_bucket(const QF* qf,
+                                uint64_t target_bucket,
+                                uint64_t max_tries,
+                                std::mt19937_64& rng,
+                                std::uniform_int_distribution<uint64_t>& dist,
+                                uint64_t& out_key) {
+    for (uint64_t t = 0; t < max_tries; ++t) {
+        const uint64_t key = dist(rng);
+        const Projection p = project_key_hash(qf, key);
+        if (p.bucket != target_bucket) {
+            continue;
+        }
+        if (p.fingerprint == 0) {
+            continue;
+        }
+        out_key = key;
+        return true;
+    }
+    return false;
+}
+
+struct BucketKeyPlan {
+    uint64_t bucket_index_hash_size = 0;
+    uint64_t orig_q_bits = 0;
+    uint64_t upper_bits = 0;
+    uint64_t orig_nslots = 0;
+    uint64_t fp_bits = 0;
+};
+
+bool init_bucket_key_plan(const QF* qf, BucketKeyPlan& plan) {
+    if (!qf || !qf->metadata) {
+        return false;
+    }
+    plan.fp_bits = qf->metadata->fingerprint_bits;
+    if (plan.fp_bits >= 63) {
+        return false;
+    }
+    plan.bucket_index_hash_size = qf->metadata->key_bits - plan.fp_bits;
+    plan.orig_q_bits = qf->metadata->original_quotient_bits;
+    if (plan.orig_q_bits == 0 || plan.orig_q_bits > 32) {
+        return false;
+    }
+    plan.upper_bits = plan.bucket_index_hash_size - plan.orig_q_bits;
+    plan.orig_nslots = qf->metadata->nslots >> plan.upper_bits;
+    if (plan.orig_nslots == 0) {
+        return false;
+    }
+    return true;
+}
+
+std::vector<uint64_t> build_inverse_reduce(const BucketKeyPlan& plan) {
+    std::vector<uint64_t> inv(plan.orig_nslots, std::numeric_limits<uint64_t>::max());
+    const uint64_t q_mask = bitmask(plan.orig_q_bits);
+    const uint64_t total = 1ULL << plan.orig_q_bits;
+    for (uint64_t qbits = 0; qbits < total; ++qbits) {
+        const uint32_t hash = static_cast<uint32_t>((qbits & q_mask) << (32 - plan.orig_q_bits));
+        const uint32_t reduced = fast_reduce(hash, static_cast<uint32_t>(plan.orig_nslots));
+        if (inv[reduced] == std::numeric_limits<uint64_t>::max()) {
+            inv[reduced] = qbits;
+        }
+    }
+    return inv;
+}
+
+bool build_key_for_bucket(const QF* qf,
+                          const BucketKeyPlan& plan,
+                          const std::vector<uint64_t>& inv_reduce,
+                          uint64_t target_bucket,
+                          uint64_t fp_value,
+                          uint64_t& out_key) {
+    if (plan.orig_nslots == 0 || target_bucket >= qf->metadata->nslots) {
+        return false;
+    }
+    const uint64_t reduced = target_bucket >> plan.upper_bits;
+    const uint64_t upper = target_bucket & bitmask(plan.upper_bits);
+    if (reduced >= plan.orig_nslots) {
+        return false;
+    }
+    const uint64_t qbits = inv_reduce[reduced];
+    if (qbits == std::numeric_limits<uint64_t>::max()) {
+        return false;
+    }
+    uint64_t key = 0;
+    key |= qbits;
+    key |= (upper << plan.orig_q_bits);
+    if (plan.fp_bits > 0) {
+        const uint64_t fp_mask = bitmask(plan.fp_bits);
+        const uint64_t fp = (fp_value & fp_mask);
+        if (fp == 0) {
+            return false;
+        }
+        key |= (fp << plan.bucket_index_hash_size);
+    }
+
+    const Projection p = project_key_hash(qf, key);
+    if (p.bucket != target_bucket || p.fingerprint == 0) {
+        return false;
+    }
+    out_key = key;
+    return true;
+}
+
 void print_usage_header() {
     std::cout << "[+] Running memento offset-overflow experiment" << std::endl;
 }
@@ -526,7 +628,7 @@ int main(int argc, char const *argv[]) {
     argparse::ArgumentParser parser("bench-memento-overflow");
     parser.add_argument("arg").help("target bits per key (bpk)").scan<'g', double>();
     parser.add_argument("--mode")
-        .help("attack mode: single-prefix | dual-hot | x-hot | random")
+        .help("attack mode: single-prefix | dual-hot | x-hot | sq | random")
         .default_value(std::string("single-prefix"));
     parser.add_argument("--hot-slots")
         .help("number of adjacent hot buckets (used when mode=x-hot)")
@@ -635,6 +737,36 @@ int main(int argc, char const *argv[]) {
         .default_value(uint64_t(6))
         .scan<'u', uint64_t>();
 
+    parser.add_argument("--def-reconstruct")
+        .help("enable lightweight reconstruct (resize) when offsets exceed threshold")
+        .default_value(false)
+        .implicit_value(true);
+    parser.add_argument("--reconstruct-threshold")
+        .help("offset threshold to trigger reconstruct (per-block offset)")
+        .default_value(uint64_t(32))
+        .scan<'u', uint64_t>();
+
+    parser.add_argument("--def-adaptive-verify")
+        .help("enable adaptive verification when block offset >= threshold")
+        .default_value(false)
+        .implicit_value(true);
+    parser.add_argument("--verify-threshold")
+        .help("offset threshold to trigger adaptive verification")
+        .default_value(uint64_t(16))
+        .scan<'u', uint64_t>();
+    parser.add_argument("--def-keepsake-rle")
+        .help("enable keepsake-box run-length / counter compression for repeated mementos")
+        .default_value(false)
+        .implicit_value(true);
+    parser.add_argument("--def-reconstruct")
+        .help("enable one-time reconstruction/re-encoding when offset reaches threshold")
+        .default_value(false)
+        .implicit_value(true);
+    parser.add_argument("--reconstruct-threshold")
+        .help("offset threshold that triggers reconstruction")
+        .default_value(uint64_t(32))
+        .scan<'u', uint64_t>();
+
     try {
         parser.parse_args(argc, argv);
     } catch (const std::runtime_error &err) {
@@ -650,7 +782,7 @@ int main(int argc, char const *argv[]) {
     const uint64_t requested_inserts = parser.get<uint64_t>("--requested-inserts");
     const double attack_insert_ratio = parser.get<double>("--attack-insert-ratio");
     const uint64_t query_count = parser.get<uint64_t>("--query-count");
-    const std::string xhot_schedule = parser.get<std::string>("--xhot-schedule");
+    std::string xhot_schedule = parser.get<std::string>("--xhot-schedule");
     const uint64_t burst_len = parser.get<uint64_t>("--burst-len");
     const double zipf_s = parser.get<double>("--zipf-s");
     const bool strict_load_factor = parser.get<bool>("--strict-load-factor");
@@ -675,13 +807,21 @@ int main(int argc, char const *argv[]) {
     const uint64_t dump_block_start = parser.get<uint64_t>("--dump-block-start");
     const uint64_t dump_block_count = parser.get<uint64_t>("--dump-block-count");
 
-    if (mode != "single-prefix" && mode != "dual-hot" && mode != "x-hot" && mode != "random") {
+    const bool def_adaptive_verify = parser.get<bool>("--def-adaptive-verify");
+    const uint64_t verify_threshold = parser.get<uint64_t>("--verify-threshold");
+    const bool def_keepsake_rle = parser.get<bool>("--def-keepsake-rle");
+    const bool def_reconstruct = parser.get<bool>("--def-reconstruct");
+    const uint64_t reconstruct_threshold = parser.get<uint64_t>("--reconstruct-threshold");
+
+    if (mode != "single-prefix" && mode != "dual-hot" && mode != "x-hot" && mode != "random" && mode != "sq") {
         std::cerr << "[!] unsupported mode: " << mode << std::endl;
         return 2;
     }
-    if (xhot_schedule != "round-robin" && xhot_schedule != "burst" && xhot_schedule != "zipf") {
-        std::cerr << "[!] unsupported --xhot-schedule: " << xhot_schedule << std::endl;
-        return 2;
+    if (mode == "x-hot") {
+        if (xhot_schedule != "round-robin" && xhot_schedule != "burst" && xhot_schedule != "zipf") {
+            std::cerr << "[!] unsupported --xhot-schedule: " << xhot_schedule << std::endl;
+            return 2;
+        }
     }
     if (burst_len == 0) {
         std::cerr << "[!] --burst-len must be >= 1" << std::endl;
@@ -711,8 +851,10 @@ int main(int argc, char const *argv[]) {
         requested_hot_slots = parser.get<uint64_t>("--hot-slots");
     } else if (mode == "random") {
         requested_hot_slots = 0;
+    } else if (mode == "sq") {
+        requested_hot_slots = 0;
     }
-    if (mode != "random" && requested_hot_slots == 0) {
+    if (mode != "random" && mode != "sq" && requested_hot_slots == 0) {
         std::cerr << "[!] --hot-slots must be >= 1" << std::endl;
         return 2;
     }
@@ -753,6 +895,10 @@ int main(int argc, char const *argv[]) {
     const bool variable_length_counter_encoding = probe_variable_length_counter_encoding(
         key_bits, memento_bits, seed, key_search_tries);
     const bool allow_duplicate_mementos = allow_duplicate_mementos_requested && variable_length_counter_encoding;
+
+    if (mode == "sq") {
+        xhot_schedule = "sq";
+    }
 
     std::cout << "[+] mode=" << mode
               << " hot_slots=" << requested_hot_slots
@@ -799,7 +945,7 @@ int main(int argc, char const *argv[]) {
     hot_keys.reserve(requested_hot_slots);
     hot_projections.reserve(requested_hot_slots);
 
-    if (mode != "random") {
+    if (mode != "random" && mode != "sq") {
         // Find a non-zero-fingerprint crafted hash-key for one bucket.
         uint64_t key_a = find_key_for_projection(qf, 1, 0, -1, key_search_tries);
         if (key_a == std::numeric_limits<uint64_t>::max()) {
@@ -844,6 +990,7 @@ int main(int argc, char const *argv[]) {
 
     std::vector<uint64_t> used_per_hot(hot_keys.size(), 0);
     std::vector<BlockTraceState> trace_prev_state;
+    std::unordered_map<uint64_t, uint32_t> keepsake_counters;
     std::mt19937_64 rng(static_cast<uint64_t>(seed) ^ 0x9e3779b97f4a7c15ULL);
     std::discrete_distribution<uint64_t> zipf_dist;
     if (mode == "x-hot" && !hot_keys.empty() && xhot_schedule == "zipf") {
@@ -857,6 +1004,21 @@ int main(int argc, char const *argv[]) {
     std::uniform_int_distribution<uint64_t> random_memento_dist(0, per_prefix_cap - 1);
     std::bernoulli_distribution attack_insert_dist(attack_insert_ratio);
     uint64_t attack_insert_seq = 0;
+
+    uint64_t sq_target_inserts = 0;
+    uint64_t sq_inserted = 0;
+    uint64_t sq_next_l = 0;
+    bool reconstruct_done = false;
+    if (mode == "sq") {
+        const double target_f = std::floor(static_cast<double>(requested_inserts) * attack_insert_ratio);
+        sq_target_inserts = static_cast<uint64_t>(target_f);
+        if (attack_insert_ratio > 0.0 && sq_target_inserts == 0) {
+            sq_target_inserts = 1;
+        }
+        if (sq_target_inserts > qf->metadata->nslots) {
+            sq_target_inserts = qf->metadata->nslots;
+        }
+    }
 
     SegmentLatencyStats insert_prepare(latency_sample_size, seed ^ 0x1001ULL);
     SegmentLatencyStats insert_core(latency_sample_size, seed ^ 0x1002ULL);
@@ -874,12 +1036,38 @@ int main(int argc, char const *argv[]) {
         uint64_t key = 0;
         uint64_t memento = 0;
 
-        const bool use_attack_insert = (mode != "random") && attack_insert_dist(rng);
+        bool use_attack_insert = (mode != "random") && attack_insert_dist(rng);
+        if (mode == "sq") {
+            use_attack_insert = (sq_inserted < sq_target_inserts);
+        }
 
         if (mode == "random" || !use_attack_insert) {
             key = random_key_dist(rng);
             memento = random_memento_dist(rng);
             ++result.random_inserts_actual;
+        } else if (mode == "sq") {
+            if (sq_inserted >= sq_target_inserts) {
+                key = random_key_dist(rng);
+                memento = random_memento_dist(rng);
+                ++result.random_inserts_actual;
+            } else {
+                const uint64_t target_bucket = sq_next_l;
+                if (target_bucket >= qf->metadata->nslots) {
+                    break;
+                }
+                uint64_t candidate = 0;
+                bool found = find_random_key_for_bucket(
+                    qf, target_bucket, key_search_tries, rng, random_key_dist, candidate);
+                if (!found) {
+                    break;
+                }
+                key = candidate;
+                memento = random_memento_dist(rng);
+                ++sq_next_l;
+                ++sq_inserted;
+                ++result.attack_inserts_actual;
+                ++attack_insert_seq;
+            }
         } else {
             uint64_t chosen_hot_idx = std::numeric_limits<uint64_t>::max();
             const uint64_t rr_idx = hot_keys.empty() ? 0 : (attack_insert_seq % hot_keys.size());
@@ -924,17 +1112,92 @@ int main(int argc, char const *argv[]) {
             ++result.attack_inserts_actual;
             ++attack_insert_seq;
         }
-        const auto seg1 = clock_type::now();
+        Projection proj = project_key_hash(qf, key);
 
-        const int64_t rc = qf_insert_single(qf, key, memento, QF_NO_LOCK | QF_KEY_IS_HASH);
+        bool do_insert = true;
+        int64_t rc = 0;
+
+        if (def_adaptive_verify) {
+            // Use adaptive query with memento list size threshold
+            const int pq = qf_point_query_adaptive(qf, key, memento, QF_NO_LOCK | QF_KEY_IS_HASH, verify_threshold);
+            if (pq > 0) {
+                do_insert = false; // already present per adaptive verification
+            }
+        }
+
+        if (def_reconstruct && !reconstruct_done) {
+            const uint64_t block_idx = proj.bucket / QF_SLOTS_PER_BLOCK;
+            if (block_idx < qf->metadata->nblocks) {
+                const uint8_t off = get_block_ptr(qf, block_idx)->offset;
+                if (off >= static_cast<uint8_t>(reconstruct_threshold)) {
+                    const uint64_t new_nslots = (qf->metadata->nslots <= (std::numeric_limits<uint64_t>::max() / 2))
+                        ? (qf->metadata->nslots * 2)
+                        : qf->metadata->nslots;
+                    const int64_t rc_resize = qf_resize_malloc(qf, new_nslots);
+                    if (rc_resize < 0) {
+                        ++result.insert_failures;
+                        continue;
+                    }
+                    reconstruct_done = true;
+                }
+            }
+        }
+
+        if (def_keepsake_rle) {
+            const uint64_t ks_key = (proj.bucket << 32) | memento;
+            const uint64_t max_keeps = (qf->metadata->memento_bits >= 63)
+                ? std::numeric_limits<uint64_t>::max()
+                : ((1ULL << qf->metadata->memento_bits) - 1ULL);
+            auto it = keepsake_counters.find(ks_key);
+            if (it == keepsake_counters.end()) {
+                // first occurrence: materialize into filter
+                keepsake_counters.emplace(ks_key, 1u);
+                do_insert = true;
+            } else if (static_cast<uint64_t>(it->second) < max_keeps) {
+                // compress duplicate: increment counter, skip physical insert
+                ++(it->second);
+                do_insert = false;
+            } else {
+                // counter at max: materialize one more and reset counter
+                it->second = 1u;
+                do_insert = true;
+            }
+        }
+
+        if (def_reconstruct) {
+            const uint64_t block_idx = proj.bucket / QF_SLOTS_PER_BLOCK;
+            if (block_idx < qf->metadata->nblocks) {
+                const uint8_t off = get_block_ptr(qf, block_idx)->offset;
+                if (off >= static_cast<uint8_t>(reconstruct_threshold)) {
+                    std::cerr << "[info] reconstruct triggered at op=" << result.actual_inserts + 1
+                              << " block=" << block_idx << " offset=" << static_cast<uint64_t>(off) << "\n";
+                    const uint64_t new_nslots = qf->metadata->nslots * 2;
+                    const int64_t copied = qf_resize_malloc(qf, new_nslots);
+                    if (copied < 0) {
+                        std::cerr << "[warn] reconstruct failed (qf_resize_malloc)\n";
+                    } else {
+                        std::cerr << "[info] reconstruct completed: new nslots=" << qf->metadata->nslots << " copied=" << copied << "\n";
+                    }
+                }
+            }
+        }
+
+        const auto seg1 = clock_type::now();
+        if (do_insert) {
+            rc = qf_insert_single(qf, key, memento, QF_NO_LOCK | QF_KEY_IS_HASH);
+        } else {
+            rc = 0; // treated as successful compressed insert
+        }
         const auto seg2 = clock_type::now();
         insert_core_ns_sum += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(seg2 - seg1).count());
         if (rc < 0) {
             ++result.insert_failures;
             continue;
         }
-        inserted_pairs.emplace_back(key, memento);
-        ++result.actual_inserts;
+        if (do_insert) {
+            inserted_pairs.emplace_back(key, memento);
+            ++result.actual_inserts;
+        }
 
         if (dump_slots_at_op > 0 && result.actual_inserts == dump_slots_at_op) {
             dump_slots_for_blocks(qf, result.actual_inserts, dump_block_start, dump_block_count);
@@ -1018,7 +1281,7 @@ int main(int argc, char const *argv[]) {
                 ? std::numeric_limits<uint64_t>::max()
                 : (l_key + R - 1);
             const auto s1 = clock_type::now();
-            const int qr = qf_range_query(qf, l_key, 0, r_key, max_memento_query, QF_NO_LOCK | QF_KEY_IS_HASH);
+            const int qr = (def_adaptive_verify ? qf_range_query_adaptive(qf, l_key, 0, r_key, max_memento_query, QF_NO_LOCK | QF_KEY_IS_HASH, verify_threshold) : qf_range_query(qf, l_key, 0, r_key, max_memento_query, QF_NO_LOCK | QF_KEY_IS_HASH));
             const auto s2 = clock_type::now();
             core_ns_sum += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(s2 - s1).count());
             ++checks;
@@ -1076,7 +1339,7 @@ int main(int argc, char const *argv[]) {
                 continue;
             }
             const auto s1 = clock_type::now();
-            const int qr = qf_range_query(qf, l_key, 0, r_key, max_memento_query, QF_NO_LOCK | QF_KEY_IS_HASH);
+            const int qr = (def_adaptive_verify ? qf_range_query_adaptive(qf, l_key, 0, r_key, max_memento_query, QF_NO_LOCK | QF_KEY_IS_HASH, verify_threshold) : qf_range_query(qf, l_key, 0, r_key, max_memento_query, QF_NO_LOCK | QF_KEY_IS_HASH));
             const auto s2 = clock_type::now();
             core_ns_sum += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(s2 - s1).count());
             ++checks;
@@ -1096,7 +1359,7 @@ int main(int argc, char const *argv[]) {
             : inserted_pairs[i % inserted_pairs.size()];
         const auto s1 = clock_type::now();
 
-        const int qr = qf_point_query(qf, km.first, km.second, QF_NO_LOCK | QF_KEY_IS_HASH);
+        const int qr = (def_adaptive_verify ? qf_point_query_adaptive(qf, km.first, km.second, QF_NO_LOCK | QF_KEY_IS_HASH, verify_threshold) : qf_point_query(qf, km.first, km.second, QF_NO_LOCK | QF_KEY_IS_HASH));
         const auto s2 = clock_type::now();
         point_pos_core_ns_sum += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(s2 - s1).count());
         ++result.point_pos_checks;
@@ -1131,7 +1394,7 @@ int main(int argc, char const *argv[]) {
                 continue;
             }
             const auto s1 = clock_type::now();
-            const int qr = qf_point_query(qf, key, memento, QF_NO_LOCK | QF_KEY_IS_HASH);
+            const int qr = (def_adaptive_verify ? qf_point_query_adaptive(qf, key, memento, QF_NO_LOCK | QF_KEY_IS_HASH, verify_threshold) : qf_point_query(qf, key, memento, QF_NO_LOCK | QF_KEY_IS_HASH));
             const auto s2 = clock_type::now();
             point_neg_core_ns_sum += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(s2 - s1).count());
             ++result.point_neg_checks;

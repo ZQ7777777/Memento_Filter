@@ -255,6 +255,24 @@ extern "C" {
     int qf_range_query_fp_learning4(const QF *qf, uint64_t l_key, uint64_t l_memento,
             uint64_t r_key, uint64_t r_memento, uint8_t flags,
             uint64_t *fp_keys, uint64_t *fp_keys_size); 
+
+    /*** ADAPTIVE QUERY/INSERT (NEW) ***/
+    /* Adaptive point query: dynamically switches between linear and binary search
+     * based on the number of mementos in the keepsake. threshold_count determines
+     * the switchover point. */
+    int qf_point_query_adaptive(const QF *qf, uint64_t key, uint64_t memento, 
+                                uint8_t flags, uint64_t threshold_count);
+
+    /* Adaptive single insert: when adding a memento, uses adaptive search strategy */
+    int64_t qf_insert_single_adaptive(QF *qf, uint64_t key, uint64_t memento, 
+                                      uint8_t flags, uint64_t threshold_count);
+
+    /* Adaptive range query: dynamically switches between linear and binary search
+     * based on the number of mementos in the keepsake. */
+    int qf_range_query_adaptive(const QF *qf, uint64_t l_key, uint64_t l_memento,
+                                uint64_t r_key, uint64_t r_memento, uint8_t flags,
+                                uint64_t threshold_count);
+
 	/****************************************
       Metadata accessors.
 	****************************************/
