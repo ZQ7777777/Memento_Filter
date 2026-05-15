@@ -35,7 +35,7 @@ run_experiment() {
     --result-dir "${out_dir}" \
     --baseline-dir "${out_dir}" \
     --figure-dir "${fig_dir}" \
-    --figures q2,i2,q2u,i2u \
+    --figures q2u,i2u \
     --formats pdf,svg
 }
 

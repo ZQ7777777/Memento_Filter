@@ -83,7 +83,32 @@ python3 bench/scripts/plot_throughput_experiments.py \
     --formats pdf,svg
 ```
 
-### 4. Notes on Statistical Outputs
+### 4. Rendering the Main Experimental Figures
+
+The paper's core experimental results are presented in five key figures. To generate these figures with confidence-interval bands for the primary attack-ratio curves:
+
+```bash
+python3 bench/scripts/plot_throughput_experiments.py \
+    --result-dir paper_results/results/throughput_full \
+    --baseline-dir paper_results/results/throughput_full \
+    --figure-dir paper_results/figures/throughput_full \
+    --figures i1,i2,i3,q1sat,q1,q2 \
+    --formats pdf,svg,emf
+```
+
+This produces the five main figures:
+
+1. **`insert_exp1_throughput_vs_x`** — Insert throughput degradation across x-sweep attack ratios (1%, 5%, 10%, 100%)
+2. **`insert_exp2_throughput_vs_m`** — Insert throughput vs. filter size m, with CI bands for attack-ratio curves and error bars for reference baselines
+3. **`insert_exp3_throughput_vs_skewness`** — Insert throughput under varying Zipf skewness
+4. **`query_exp1_saturation_vs_x`** — Filter saturation ratio (blocked fragments) as a function of x-sweep attacks
+5. **`query_exp12_combined`** — Combined view: first row shows query throughput x-sweep (with CI bands); second row shows m-sweep comparison (with error bars)
+
+**Note on visualization:** 
+- Main attack-ratio curves use shaded confidence-interval bands (darker gray, 28% opacity) to reduce visual clutter and clearly distinguish uncertainty from data variability.
+- Reference baselines and comparative lines (e.g., "no defense" in insert plots, m-sweep comparison in query plots) use traditional error bars for clarity and visual hierarchy.
+
+### 5. Notes on Statistical Outputs
 
 The throughput runner emits both raw and aggregated CSV files. Aggregated files include mean, standard deviation, and 95% confidence intervals (`*_mean`, `*_std`, `*_ci95`).
 It also writes per-experiment t-test reports (for example, `query_exp2_ttest.csv` and `insert_exp2_ttest.csv`) and uplift summaries by attack ratio and metric with p-values.

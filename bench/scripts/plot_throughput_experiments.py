@@ -8,6 +8,7 @@ from pathlib import Path
 
 import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import pandas as pd
 
 
@@ -37,6 +38,13 @@ METRICS = [
 
 OUTPUT_FORMATS = ["pdf", "svg"]
 USE_LOG_Y_FOR_QUERY_THROUGHPUT = True
+
+# Confidence interval rendering for selected throughput figures.
+# Tweak these here if you want darker/lighter uncertainty bands later.
+CI_BAND_COLOR = "#5f5f5f"
+CI_BAND_ALPHA = 0.28
+CI_BAND_ZORDER = 1
+CI_LINE_ZORDER = 2
 
 
 def convert_svg_to_emf(svg_path: Path, emf_path: Path) -> bool:
@@ -147,6 +155,49 @@ def metric_values(
     return y_vals, y_err
 
 
+def draw_ci_band(
+    ax: plt.Axes,
+    x_vals: list[int],
+    y_vals: list[float],
+    y_err: list[float] | None,
+    *,
+    color: str = CI_BAND_COLOR,
+    alpha: float = CI_BAND_ALPHA,
+    zorder: int = CI_BAND_ZORDER,
+) -> None:
+    if y_err is None or not x_vals:
+        return
+    y_low = [y - e for y, e in zip(y_vals, y_err)]
+    y_high = [y + e for y, e in zip(y_vals, y_err)]
+    if ax.get_yscale() == "log":
+        y_low = [max(v, 1e-12) for v in y_low]
+    ax.fill_between(
+        x_vals,
+        y_low,
+        y_high,
+        facecolor=color,
+        edgecolor=color,
+        alpha=alpha,
+        linewidth=0.0,
+        zorder=zorder,
+    )
+
+
+def plot_series_with_ci_band(
+    ax: plt.Axes,
+    x_vals: list[int],
+    y_vals: list[float],
+    y_err: list[float] | None,
+    style: dict,
+    *,
+    band_color: str = CI_BAND_COLOR,
+    band_alpha: float = CI_BAND_ALPHA,
+    line_zorder: int = CI_LINE_ZORDER,
+) -> None:
+    draw_ci_band(ax, x_vals, y_vals, y_err, color=band_color, alpha=band_alpha)
+    ax.plot(x_vals, y_vals, zorder=line_zorder, **style)
+
+
 def compute_uplift_frame(def_df: pd.DataFrame, base_df: pd.DataFrame, metric: str) -> pd.DataFrame:
     def_col, _ = metric_columns(def_df, metric)
     base_col, _ = metric_columns(base_df, metric)
@@ -194,15 +245,10 @@ def add_ratio_style(
     linewidth: float | None = None,
 ) -> None:
     style = LINE_STYLES.get(float(ratio), {"color": "black", "linestyle": "-", "marker": "o", "label": f"{ratio:.2f}"})
-    if y_err is None:
-        if linewidth is None:
-            ax.plot(x_vals, y_vals, markevery=markevery, **style)
-        else:
-            ax.plot(x_vals, y_vals, markevery=markevery, linewidth=linewidth, **style)
-    else:
-        if linewidth is not None:
-            style = {**style, "linewidth": linewidth}
-        ax.errorbar(x_vals, y_vals, yerr=y_err, capsize=2.0, markevery=markevery, **style)
+    if linewidth is not None:
+        style = {**style, "linewidth": linewidth}
+    style = {**style, "markevery": markevery}
+    plot_series_with_ci_band(ax, x_vals, y_vals, y_err, style)
 
 
 def add_sq_style(
@@ -222,10 +268,7 @@ def add_sq_style(
     }
     if linewidth is not None:
         style["linewidth"] = linewidth
-    if y_err is None:
-        ax.plot(x_vals, y_vals, **style)
-    else:
-        ax.errorbar(x_vals, y_vals, yerr=y_err, capsize=2.0, **style)
+    plot_series_with_ci_band(ax, x_vals, y_vals, y_err, style)
 
 
 def draw_baseline_band(ax: plt.Axes, xs: list[int], baseline: float, ci: float | None) -> None:
@@ -324,8 +367,10 @@ def plot_query_exp1(base_dir: Path, fig_dir: Path) -> None:
             x_vals = g["x"].astype(int).tolist()
             y_vals, y_err = metric_values(g, metric, scale=1e7)
             y_series_col.append(y_vals)
-
-            add_ratio_style(ax_top, x_vals, y_vals, y_err, float(ratio), markevery)
+            if y_err is None:
+                ax_top.plot(x_vals, y_vals, markevery=markevery, **LINE_STYLES.get(float(ratio), {"color": "black", "linestyle": "-", "marker": "o", "label": f"{ratio:.2f}"}))
+            else:
+                ax_top.errorbar(x_vals, y_vals, yerr=y_err, capsize=2.0, markevery=markevery, **LINE_STYLES.get(float(ratio), {"color": "black", "linestyle": "-", "marker": "o", "label": f"{ratio:.2f}"}))
 
         if USE_LOG_Y_FOR_QUERY_THROUGHPUT:
             ax_top.set_yscale("log")
@@ -548,10 +593,7 @@ def plot_query_exp2_sq(base_dir: Path, fig_dir: Path, *, use_ci: bool = True, ba
                     y_vals, y_err = metric_values(g, metric, scale=1e7, use_ci=use_ci)
                     y_series_col.append(y_vals)
                     style = LINE_STYLES.get(float(ratio), {"color": "black", "linestyle": "-", "marker": "o", "label": f"{ratio:.2f}"})
-                    if y_err is None:
-                        ax.plot(g["m_exp"].tolist(), y_vals, **style)
-                    else:
-                        ax.errorbar(g["m_exp"].tolist(), y_vals, yerr=y_err, capsize=2.0, **style)
+                    plot_series_with_ci_band(ax, g["m_exp"].tolist(), y_vals, y_err, style)
             if not sq.empty:
                 g_sq = sq[sq["attack_ratio"] == ratio].sort_values("m_exp")
                 if not g_sq.empty:
@@ -562,10 +604,13 @@ def plot_query_exp2_sq(base_dir: Path, fig_dir: Path, *, use_ci: bool = True, ba
         if not rb.empty:
             g_rb = rb.sort_values("m_exp")
             rb_vals, rb_err = metric_values(g_rb, metric, scale=1e7, use_ci=use_ci)
-            if rb_err is None:
-                ax.plot(g_rb["m_exp"].tolist(), rb_vals, color="black", linestyle="--", marker="x", label="baseline")
-            else:
-                ax.errorbar(g_rb["m_exp"].tolist(), rb_vals, yerr=rb_err, capsize=2.0, color="black", linestyle="--", marker="x", label="baseline")
+            plot_series_with_ci_band(
+                ax,
+                g_rb["m_exp"].tolist(),
+                rb_vals,
+                rb_err,
+                {"color": "black", "linestyle": "--", "marker": "x", "label": "baseline"},
+            )
             baseline_ref = max(rb_vals) if rb_vals else 0.0
         else:
             baseline_ref = 0.0
@@ -573,10 +618,13 @@ def plot_query_exp2_sq(base_dir: Path, fig_dir: Path, *, use_ci: bool = True, ba
         if not nd.empty:
             g_nd = nd.sort_values("m_exp")
             nd_vals, nd_err = metric_values(g_nd, metric, scale=1e7, use_ci=use_ci)
-            if nd_err is None:
-                ax.plot(g_nd["m_exp"].tolist(), nd_vals, color="#111111", linestyle="-.", marker="d", label="no defense")
-            else:
-                ax.errorbar(g_nd["m_exp"].tolist(), nd_vals, yerr=nd_err, capsize=2.0, color="#111111", linestyle="-.", marker="d", label="no defense")
+            plot_series_with_ci_band(
+                ax,
+                g_nd["m_exp"].tolist(),
+                nd_vals,
+                nd_err,
+                {"color": "#111111", "linestyle": "-.", "marker": "d", "label": "no defense"},
+            )
 
         if USE_LOG_Y_FOR_QUERY_THROUGHPUT:
             ax.set_yscale("log")
@@ -642,14 +690,18 @@ def plot_query_exp12_combined(base_dir: Path, fig_dir: Path) -> None:
     xs = sorted(q1["x"].unique())
     markevery = power_two_markevery(xs)
     m_exps = sorted(q2["m_exp"].unique())
+    row1_y_series_by_col: list[list[list[float]]] = [[] for _ in METRICS]
+    row2_y_series_by_col: list[list[list[float]]] = [[] for _ in METRICS]
+    row1_baseline_by_col: list[float] = [0.0 for _ in METRICS]
+    row2_baseline_by_col: list[float] = [0.0 for _ in METRICS]
 
     fig, axes = plt.subplots(2, 3, figsize=(7.2, 2.6), sharex=False)
 
-    # Row 1: q1 (x sweep)
     for col_idx, (metric, title) in enumerate(METRICS):
         ax = axes[0, col_idx]
         rb_qps, rb_ci = baseline_values(q1_rb, metric, scale=1e7)
         rb_qps = rb_qps if rb_qps is not None else 0.0
+        row1_baseline_by_col[col_idx] = rb_qps
         y_series_col: list[list[float]] = []
 
         for ratio in ratios:
@@ -659,6 +711,7 @@ def plot_query_exp12_combined(base_dir: Path, fig_dir: Path) -> None:
             x_vals = g["x"].astype(int).tolist()
             y_vals, y_err = metric_values(g, metric, scale=1e7)
             y_series_col.append(y_vals)
+            row1_y_series_by_col[col_idx].append(y_vals)
             add_ratio_style(ax, x_vals, y_vals, y_err, float(ratio), markevery, linewidth=QUERY_EXP12_ROW1_LINEWIDTH)
 
         if USE_LOG_Y_FOR_QUERY_THROUGHPUT:
@@ -686,7 +739,6 @@ def plot_query_exp12_combined(base_dir: Path, fig_dir: Path) -> None:
         ax.set_xlabel("x", fontsize=XLABEL_FONT_SIZE, labelpad=1.0)
         _set_inner_y_tick_spacing(ax, is_left_col=(col_idx == 0))
 
-    # Row 2: q2 (m sweep)
     for col_idx, (metric, _) in enumerate(METRICS):
         ax = axes[1, col_idx]
         y_series_col = []
@@ -696,22 +748,25 @@ def plot_query_exp12_combined(base_dir: Path, fig_dir: Path) -> None:
                 continue
             y_vals, y_err = metric_values(g, metric, scale=1e7)
             y_series_col.append(y_vals)
+            row2_y_series_by_col[col_idx].append(y_vals)
             style = LINE_STYLES.get(float(ratio), {"color": "black", "linestyle": "-", "marker": "o", "label": f"{ratio:.2f}"})
-            if y_err is None:
-                ax.plot(g["m_exp"].tolist(), y_vals, **style)
-            else:
-                ax.errorbar(g["m_exp"].tolist(), y_vals, yerr=y_err, capsize=2.0, **style)
+            plot_series_with_ci_band(ax, g["m_exp"].tolist(), y_vals, y_err, style)
 
         if not q2_rb.empty:
             g_rb = q2_rb.sort_values("m_exp")
             rb_vals, rb_err = metric_values(g_rb, metric, scale=1e7)
-            if rb_err is None:
-                ax.plot(g_rb["m_exp"].tolist(), rb_vals, color="black", linestyle="--", marker="x", label="baseline")
-            else:
-                ax.errorbar(g_rb["m_exp"].tolist(), rb_vals, yerr=rb_err, capsize=2.0, color="black", linestyle="--", marker="x", label="baseline")
+            row2_baseline_by_col[col_idx] = max(rb_vals) if rb_vals else 0.0
+            plot_series_with_ci_band(
+                ax,
+                g_rb["m_exp"].tolist(),
+                rb_vals,
+                rb_err,
+                {"color": "black", "linestyle": "--", "marker": "x", "label": "baseline"},
+            )
             baseline_ref = max(rb_vals) if rb_vals else 0.0
         else:
             baseline_ref = 0.0
+            row2_baseline_by_col[col_idx] = 0.0
 
         if USE_LOG_Y_FOR_QUERY_THROUGHPUT:
             ax.set_yscale("log")
@@ -735,6 +790,22 @@ def plot_query_exp12_combined(base_dir: Path, fig_dir: Path) -> None:
         ax.set_xlabel("m", fontsize=XLABEL_FONT_SIZE, labelpad=1.0)
         _set_inner_y_tick_spacing(ax, is_left_col=(col_idx == 0))
 
+    if USE_LOG_Y_FOR_QUERY_THROUGHPUT:
+        for col_idx in range(len(METRICS)):
+            row1_vals = [v for seq in row1_y_series_by_col[col_idx] for v in seq if pd.notna(v) and v > 0]
+            row2_vals = [v for seq in row2_y_series_by_col[col_idx] for v in seq if pd.notna(v) and v > 0]
+            baseline_vals = [v for v in (row1_baseline_by_col[col_idx], row2_baseline_by_col[col_idx]) if pd.notna(v) and v > 0]
+            all_vals = row1_vals + row2_vals + baseline_vals
+            if not all_vals:
+                continue
+            low = min(all_vals)
+            high = max(all_vals)
+            # Leave enough headroom for markers and the baseline line so edge points do not get clipped.
+            shared_low = max(low * 0.80, 1e-12)
+            shared_high = high * 1.25
+            axes[0, col_idx].set_ylim(shared_low, shared_high)
+            axes[1, col_idx].set_ylim(shared_low, shared_high)
+
     handles = []
     for ratio in ratios:
         s = LINE_STYLES.get(float(ratio), {"color": "black", "linestyle": "-", "marker": "o", "label": f"{ratio:.2f}"})
@@ -751,7 +822,16 @@ def plot_query_exp12_combined(base_dir: Path, fig_dir: Path) -> None:
         framealpha=1.0,
         fontsize=QUERY_LEGEND_FONT_SIZE,
     )
-    fig.text(0.02, 0.5, "Query Throughput (queries/s)", rotation=90, va="center", ha="left", fontsize=YLABEL_FONT_SIZE)
+    fig.text(
+        0.02,
+        0.5,
+        "Query Throughput (queries/s)",
+        rotation=90,
+        rotation_mode="anchor",
+        va="center",
+        ha="center",
+        fontsize=YLABEL_FONT_SIZE,
+    )
     fig.subplots_adjust(left=0.09, wspace=0.09, hspace=0.5, right=0.835)
 
     save_figure_multi(fig, fig_dir, "query_exp12_combined")
@@ -829,28 +909,21 @@ def plot_insert_exp2(base_dir: Path, fig_dir: Path, *, use_ci: bool = True, base
     fig, ax = plt.subplots(figsize=(3.5, 2))
     for ratio in ratios:
         g = df[df["attack_ratio"] == ratio].sort_values("m_exp")
-        y_vals, y_err = metric_values(g, "insert_qps", use_ci=use_ci)
+        # Force CI band rendering for insert_exp2 (i2)
+        y_vals, y_err = metric_values(g, "insert_qps", use_ci=True)
         style = LINE_STYLES.get(float(ratio), {"color": "black", "linestyle": "-", "marker": "o", "label": f"{ratio:.2f}"})
-        if y_err is None:
-            ax.plot(g["m_exp"].tolist(), y_vals, **style)
-        else:
-            ax.errorbar(g["m_exp"].tolist(), y_vals, yerr=y_err, capsize=2.0, **style)
+        plot_series_with_ci_band(ax, g["m_exp"].tolist(), y_vals, y_err, style)
 
     if not rb.empty:
         g_rb = rb.sort_values("m_exp")
         rb_vals, rb_err = metric_values(g_rb, "insert_qps", use_ci=use_ci)
-        if rb_err is None:
-            ax.plot(g_rb["m_exp"].tolist(), rb_vals, color="black", linestyle="--", marker="x", label="random baseline")
-        else:
-            ax.errorbar(g_rb["m_exp"].tolist(), rb_vals, yerr=rb_err, capsize=2.0, color="black", linestyle="--", marker="x", label="random baseline")
-
-    if not nd.empty:
-        g_nd = nd.sort_values("m_exp")
-        nd_vals, nd_err = metric_values(g_nd, "insert_qps", use_ci=use_ci)
-        if nd_err is None:
-            ax.plot(g_nd["m_exp"].tolist(), nd_vals, color="#111111", linestyle="-.", marker="d", label="no defense")
-        else:
-            ax.errorbar(g_nd["m_exp"].tolist(), nd_vals, yerr=nd_err, capsize=2.0, color="#111111", linestyle="-.", marker="d", label="no defense")
+        plot_series_with_ci_band(
+            ax,
+            g_rb["m_exp"].tolist(),
+            rb_vals,
+            rb_err,
+            {"color": "black", "linestyle": "--", "marker": "x", "label": "random baseline"},
+        )
 
     ax.set_yscale("log")
     ax.set_xticks(m_exps)
@@ -914,14 +987,6 @@ def plot_insert_exp2_sq(base_dir: Path, fig_dir: Path, *, use_ci: bool = True, b
             ax.plot(g_rb["m_exp"].tolist(), rb_vals, color="black", linestyle="--", marker="x", label="random baseline")
         else:
             ax.errorbar(g_rb["m_exp"].tolist(), rb_vals, yerr=rb_err, capsize=2.0, color="black", linestyle="--", marker="x", label="random baseline")
-
-    if not nd.empty:
-        g_nd = nd.sort_values("m_exp")
-        nd_vals, nd_err = metric_values(g_nd, "insert_qps", use_ci=use_ci)
-        if nd_err is None:
-            ax.plot(g_nd["m_exp"].tolist(), nd_vals, color="#111111", linestyle="-.", marker="d", label="no defense")
-        else:
-            ax.errorbar(g_nd["m_exp"].tolist(), nd_vals, yerr=nd_err, capsize=2.0, color="#111111", linestyle="-.", marker="d", label="no defense")
 
     ax.set_yscale("log")
     ax.set_xticks(m_exps)
@@ -1058,10 +1123,7 @@ def plot_insert_exp3(base_dir: Path, fig_dir: Path) -> None:
         g = df[df["attack_ratio"] == ratio].sort_values("zipf_s")
         y_vals, y_err = metric_values(g, "insert_qps")
         style = LINE_STYLES.get(float(ratio), {"color": "black", "linestyle": "-", "marker": "o", "label": f"{ratio:.2f}"})
-        if y_err is None:
-            ax.plot(g["zipf_s"].tolist(), y_vals, **style)
-        else:
-            ax.errorbar(g["zipf_s"].tolist(), y_vals, yerr=y_err, capsize=2.0, **style)
+        plot_series_with_ci_band(ax, g["zipf_s"].tolist(), y_vals, y_err, style)
 
     if not rb.empty:
         rb_val, rb_ci = baseline_values(rb, "insert_qps")
