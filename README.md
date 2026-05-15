@@ -29,7 +29,51 @@ make bench_memento_security -j$(nproc)
 cd ..
 ```
 
-### 2. Running the Latest Defense Experiments
+### 2. Running and Rendering the Main Experimental Figures
+
+The paper's core experimental results are presented in five key figures. To run the main experiments and generate all figures in one command:
+
+#### Generate Primary Experimental Data
+
+First, run the main throughput experiments (for query and insert operations across various attack ratios and parameters):
+
+```bash
+python3 bench/scripts/run_throughput_experiments.py \
+    --root . \
+    --experiments q1,q2,i1,i2,i3 \
+    --jobs 24 \
+    --repeats 5 \
+    --out-dir paper_results/results/throughput_full
+```
+
+This generates raw and aggregated CSV files in `paper_results/results/throughput_full/`.
+
+#### Render the Five Main Figures
+
+Once data is available, render all five figures with confidence-interval bands for attack-ratio curves:
+
+```bash
+python3 bench/scripts/plot_throughput_experiments.py \
+    --result-dir paper_results/results/throughput_full \
+    --baseline-dir paper_results/results/throughput_full \
+    --figure-dir paper_results/figures/throughput_full \
+    --figures i1,i2,i3,q1sat,q1,q2 \
+    --formats pdf,svg,emf
+```
+
+This produces the five main figures:
+
+1. **`insert_exp1_throughput_vs_x`** — Insert throughput degradation across x-sweep attack ratios (1%, 5%, 10%, 100%)
+2. **`insert_exp2_throughput_vs_m`** — Insert throughput vs. filter size m, with shaded CI bands for all attack-ratio curves
+3. **`insert_exp3_throughput_vs_skewness`** — Insert throughput under varying Zipf skewness
+4. **`query_exp1_saturation_vs_x`** — Filter saturation ratio (blocked fragments) as a function of x-sweep attacks
+5. **`query_exp12_combined`** — Combined view: first row shows query throughput x-sweep; second row shows m-sweep comparison; both use shaded CI bands for attack-ratio curves
+
+**Note on visualization:** 
+- All main attack-ratio curves use shaded confidence-interval bands (darker gray, 28% opacity) to reduce visual clutter and clearly distinguish uncertainty from data variability.
+- This design choice improves readability and emphasizes the attack severity across different experimental settings.
+
+### 3. Running the Latest Defense Experiments
 
 The latest defense comparison uses paired `q2/i2` runs for both `adaptive` and `rle`, with `repeats=5`. A single shell script now runs the experiments, generates the figures, and writes a combined uplift + p-value summary:
 
@@ -57,58 +101,7 @@ If you want to override the runtime, you can set environment variables before la
 JOBS=24 REPEATS=5 VERIFY_THRESHOLD=32 bash bench/scripts/run_latest_defense_experiments.sh
 ```
 
-### 3. Manual Experiment Runner
-
-If you prefer to invoke the Python runner directly, use relative paths from the repository root:
-
-```bash
-python3 bench/scripts/run_throughput_experiments.py \
-    --root . \
-    --experiments q2,i2 \
-    --jobs 24 \
-    --repeats 5 \
-    --out-dir paper_results/results/throughput_def/def32_adaptive_v2 \
-    --def-adaptive-verify \
-    --verify-threshold 32
-```
-
-To render figures for a result directory:
-
-```bash
-python3 bench/scripts/plot_throughput_experiments.py \
-    --result-dir paper_results/results/throughput_def/def32_adaptive_v2 \
-    --baseline-dir paper_results/results/throughput_def/def32_adaptive_v2 \
-    --figure-dir paper_results/figures/throughput_def/def32_adaptive_v2 \
-    --figures q2,i2,q2u,i2u \
-    --formats pdf,svg
-```
-
-### 4. Rendering the Main Experimental Figures
-
-The paper's core experimental results are presented in five key figures. To generate these figures with confidence-interval bands for the primary attack-ratio curves:
-
-```bash
-python3 bench/scripts/plot_throughput_experiments.py \
-    --result-dir paper_results/results/throughput_full \
-    --baseline-dir paper_results/results/throughput_full \
-    --figure-dir paper_results/figures/throughput_full \
-    --figures i1,i2,i3,q1sat,q1,q2 \
-    --formats pdf,svg,emf
-```
-
-This produces the five main figures:
-
-1. **`insert_exp1_throughput_vs_x`** — Insert throughput degradation across x-sweep attack ratios (1%, 5%, 10%, 100%)
-2. **`insert_exp2_throughput_vs_m`** — Insert throughput vs. filter size m, with CI bands for attack-ratio curves and error bars for reference baselines
-3. **`insert_exp3_throughput_vs_skewness`** — Insert throughput under varying Zipf skewness
-4. **`query_exp1_saturation_vs_x`** — Filter saturation ratio (blocked fragments) as a function of x-sweep attacks
-5. **`query_exp12_combined`** — Combined view: first row shows query throughput x-sweep (with CI bands); second row shows m-sweep comparison (with error bars)
-
-**Note on visualization:** 
-- Main attack-ratio curves use shaded confidence-interval bands (darker gray, 28% opacity) to reduce visual clutter and clearly distinguish uncertainty from data variability.
-- Reference baselines and comparative lines (e.g., "no defense" in insert plots, m-sweep comparison in query plots) use traditional error bars for clarity and visual hierarchy.
-
-### 5. Notes on Statistical Outputs
+### 4. Notes on Statistical Outputs
 
 The throughput runner emits both raw and aggregated CSV files. Aggregated files include mean, standard deviation, and 95% confidence intervals (`*_mean`, `*_std`, `*_ci95`).
 It also writes per-experiment t-test reports (for example, `query_exp2_ttest.csv` and `insert_exp2_ttest.csv`) and uplift summaries by attack ratio and metric with p-values.
